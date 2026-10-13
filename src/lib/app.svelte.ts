@@ -63,8 +63,8 @@ function describeProblem(e: unknown): { kind: ProblemKind; message: string } {
 
 class AppState {
   screen = $state<Screen>('loading')
-  /** Setup was opened from Settings (Replace token), so it can be cancelled. */
-  setupFromSettings = $state(false)
+  /** Setup was opened to replace the token, so it can be cancelled back to this screen. */
+  setupReturn = $state<Screen | null>(null)
   fatal = $state<string | null>(null)
   now = $state(new Date())
   hasToken = $state(false)
@@ -168,6 +168,7 @@ class AppState {
     this.timers.sync = setInterval(() => visible() && navigator.onLine && this.triggerSync(), SYNC_INTERVAL_MS)
     document.addEventListener('visibilitychange', () => {
       if (visible()) {
+        void this.catchUp()
         this.tick()
         this.scheduleDayRollover()
         if (this.study?.view === 'wait') this.advance()
@@ -187,6 +188,14 @@ class AppState {
     })
     window.addEventListener('offline', () => (this.sync.online = false))
     window.addEventListener('popstate', () => this.showHome())
+  }
+
+  /** Picks up changes another window of the app made while this one was in the background. */
+  private async catchUp(): Promise<void> {
+    if (await this.engine.refreshFromDb()) {
+      this.refresh()
+      this.rebuildStudyPlan()
+    }
   }
 
   /** Records today's dayCleared event if earned, and refreshes the unpushed count. */
@@ -229,7 +238,10 @@ class AppState {
     this.sync.running = true
     const before = { set: this.engine.set, derived: this.engine.derived }
     try {
-      await this.engine.sync(new GitHub(this.token))
+      const gh = new GitHub(this.token)
+      // One sync at a time across every window of the app on this device.
+      const run = () => this.engine.sync(gh)
+      await (navigator.locks ? navigator.locks.request('karticky-sync', run) : run())
       this.sync.problem = null
       this.sync.retryAt = null
       this.sync.online = true
@@ -263,20 +275,20 @@ class AppState {
     this.hasToken = true
     this.sync.problem = null
     this.sync.retryAt = null
-    this.setupFromSettings = false
+    this.setupReturn = null
     this.go('home')
     this.triggerSync()
     return null
   }
 
   replaceToken(): void {
-    this.setupFromSettings = true
+    this.setupReturn = this.screen
     this.screen = 'setup'
   }
 
   cancelSetup(): void {
-    this.setupFromSettings = false
-    this.screen = 'settings'
+    this.screen = this.setupReturn ?? 'home'
+    this.setupReturn = null
   }
 
   /** The sync line on Home and in Settings. */

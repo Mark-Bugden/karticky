@@ -35,7 +35,7 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="row">
       <button class="btn primary" type="submit" disabled={checking || !token.trim()}>{checking ? 'Checking…' : 'Save'}</button>
-      {#if app.setupFromSettings}
+      {#if app.setupReturn}
         <button class="btn" type="button" onclick={() => app.cancelSetup()}>Cancel</button>
       {/if}
     </div>

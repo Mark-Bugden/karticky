@@ -1,7 +1,30 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { execSync } from 'node:child_process'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// The GitHub token lives in this origin's storage, so the built app may load nothing from other
+// origins and may talk only to itself and api.github.com. Build only: the dev server uses inline scripts.
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' https://api.github.com",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join('; ')
+
+const contentSecurityPolicy = (): Plugin => ({
+  name: 'karticky-csp',
+  apply: 'build',
+  transformIndexHtml: () => [
+    { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CONTENT_SECURITY_POLICY }, injectTo: 'head-prepend' },
+  ],
+})
 
 function buildCommit(): string {
   if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7)
@@ -21,6 +44,7 @@ export default defineConfig({
   },
   plugins: [
     svelte(),
+    contentSecurityPolicy(),
     VitePWA({
       // 'prompt' never activates a new version while the app is open. We never show the prompt,
       // so the waiting version takes over the next time the app is launched.

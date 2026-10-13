@@ -16,7 +16,17 @@ import {
 import { makeEvent } from './events'
 import type { GitHub } from './github'
 import { isDayCleared, type World } from './queue'
-import { applyEvent, canApplyIncrementally, emptyDerived, fromCache, replay, toCache, type Derived, type DerivedCache } from './replay'
+import {
+  applyEvent,
+  canApplyIncrementally,
+  emptyDerived,
+  fingerprintOf,
+  fromCache,
+  replay,
+  toCache,
+  type Derived,
+  type DerivedCache,
+} from './replay'
 import { studyDay } from './studyDay'
 import { buildSummary, summaryText } from './summary'
 import { syncOnce, type SyncResult } from './sync'
@@ -29,6 +39,8 @@ export class Engine {
   set: ChapterSet = emptyChapterSet()
   derived: Derived = emptyDerived()
   lastSeen = new Map<string, LastSeenWord>()
+  /** The data-repo commit the loaded chapters came from. */
+  private knownCommit: string | undefined
   private cacheTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
@@ -38,6 +50,7 @@ export class Engine {
 
   async load(): Promise<void> {
     this.deviceId = await getDeviceId(this.db)
+    this.knownCommit = await getMeta(this.db, 'lastPulledCommit')
     await this.reloadChapters()
     const fingerprint = await eventsFingerprint(this.db)
     const cache = (await getMeta(this.db, 'derivedCache')) as DerivedCache | undefined
@@ -51,6 +64,25 @@ export class Engine {
     this.set = await loadChapterSet(files.map((f) => ({ path: f.path, text: f.text ?? '' })))
     await rememberWords(this.db, this.set.words.values())
     await this.loadLastSeen()
+  }
+
+  /**
+   * Catches up with changes another window of the app made to the same database.
+   * Returns whether anything was reloaded.
+   */
+  async refreshFromDb(): Promise<boolean> {
+    let changed = false
+    const commit = await getMeta(this.db, 'lastPulledCommit')
+    if (commit !== this.knownCommit) {
+      this.knownCommit = commit
+      await this.reloadChapters()
+      changed = true
+    }
+    if ((await eventsFingerprint(this.db)) !== fingerprintOf(this.derived)) {
+      await this.replayAll()
+      changed = true
+    }
+    return changed
   }
 
   async loadLastSeen(): Promise<void> {
@@ -93,8 +125,9 @@ export class Engine {
     return summaryText(buildSummary(this.world(now), this.deviceId, this.lastSeen))
   }
 
-  sync(gh: GitHub, sleep?: (ms: number) => Promise<void>): Promise<SyncResult> {
-    return syncOnce({
+  async sync(gh: GitHub, sleep?: (ms: number) => Promise<void>): Promise<SyncResult> {
+    await this.refreshFromDb()
+    const result = await syncOnce({
       db: this.db,
       gh,
       deviceId: this.deviceId,
@@ -106,6 +139,8 @@ export class Engine {
         if (changes.events) await this.replayAll()
       },
     })
+    this.knownCommit = await getMeta(this.db, 'lastPulledCommit')
+    return result
   }
 
   saveCacheSoon(): void {
