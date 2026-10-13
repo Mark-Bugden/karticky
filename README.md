@@ -15,22 +15,18 @@ connection, and keeps two devices in step through a private GitHub repository.
    README or any file does that. *(Done 13 Oct 2026; the sample chapter was its first commit.)*
 3. In `karticky-czech`, choose Add file → Create new file, name it `chapters/sample.json`, paste the
    contents of [sample/sample.json](sample/sample.json), and commit. *(Done 13 Oct 2026.)*
-4. On each device, create a fine-grained token on github.com. The quickest way is to open the
-   matching link below while signed in. It pre-fills the name, description, owner, no expiration
-   and Contents: Read and write:
-   - [Laptop token](https://github.com/settings/personal-access-tokens/new?name=Karti%C4%8Dky+laptop&description=Sync+for+the+Karti%C4%8Dky+app&target_name=Mark-Bugden&expires_in=none&contents=write)
-   - [Phone token](https://github.com/settings/personal-access-tokens/new?name=Karti%C4%8Dky+phone&description=Sync+for+the+Karti%C4%8Dky+app&target_name=Mark-Bugden&expires_in=none&contents=write)
-
-   On the page, under **Repository access**, choose **Only select repositories** and pick
-   `karticky-czech` (a link cannot pre-select repositories). Check that **Permissions** lists
-   Contents: Read and write (GitHub adds Metadata: Read by itself), then click **Generate token**
-   and copy it.
-
-   Without the links: profile picture → Settings → Developer settings → Personal access tokens →
-   Fine-grained tokens → Generate new token. Token name "Kartičky laptop" or "Kartičky phone";
-   Expiration: No expiration; Resource owner: Mark-Bugden; Repository access: Only select
-   repositories → `karticky-czech`; under Permissions, use the search box to add **Contents** and
-   set it to Read and write.
+4. On each device, create a fine-grained token on github.com:
+   1. Click your profile picture (top right), then **Settings**.
+   2. In the left sidebar, click **Developer settings**.
+   3. In the left sidebar, under **Personal access tokens**, click **Fine-grained tokens**.
+   4. Click **Generate new token**.
+   5. **Token name**: "Kartičky laptop" or "Kartičky phone".
+   6. **Expiration**: No expiration.
+   7. **Resource owner**: Mark-Bugden.
+   8. **Repository access**: Only select repositories, then pick `karticky-czech`.
+   9. **Permissions**: use the search box to add **Contents** and set it to **Read and write**.
+      GitHub adds Metadata: Read by itself.
+   10. Click **Generate token** and copy the token.
 
    One token per device means no secret moves between devices, and either can be revoked alone.
    Paste the token only into the app, never anywhere else.
