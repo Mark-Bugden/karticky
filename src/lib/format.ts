@@ -1,4 +1,5 @@
-import type { Aspect, Direction, Word } from './types'
+import { MISC_ID } from './chapters'
+import type { Aspect, Chapter, Direction, Word } from './types'
 
 const ASPECT_LABEL: Record<Aspect, string> = { impf: 'impf.', pf: 'pf.', biasp: 'biasp.' }
 const PARTNER_ASPECT: Partial<Record<Aspect, Aspect>> = { impf: 'pf', pf: 'impf' }
@@ -18,6 +19,14 @@ export function partnerLine(w: Pick<Word, 'cz' | 'aspect' | 'partner'>): string 
 }
 
 export const directionLabel = (d: Direction) => (d === 'cz-en' ? 'Czech → English' : 'English → Czech')
+
+/** "15 · A2/1 · Lesson 1"; the misc chapter shows only its title. */
+export const chapterLabel = (ch: Pick<Chapter, 'id' | 'order' | 'title'>) =>
+  ch.id === MISC_ID ? ch.title : `${ch.order} · ${ch.title}`
+
+/** Whole percent of cards learned, rounded down so 80% shows only once it is reached. */
+export const learnedPercent = (p: { learned: number; total: number }) =>
+  p.total === 0 ? 0 : Math.floor((100 * p.learned) / p.total)
 
 /** "just now", "3 min ago", "2 h ago", "4 days ago". */
 export function timeAgo(then: Date, now: Date): string {

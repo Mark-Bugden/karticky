@@ -18,6 +18,7 @@ import type { GitHub } from './github'
 import { isDayCleared, type World } from './queue'
 import {
   applyEvent,
+  CACHE_VERSION,
   canApplyIncrementally,
   emptyDerived,
   fingerprintOf,
@@ -54,7 +55,7 @@ export class Engine {
     await this.reloadChapters()
     const fingerprint = await eventsFingerprint(this.db)
     const cache = (await getMeta(this.db, 'derivedCache')) as DerivedCache | undefined
-    if (cache?.fingerprint === fingerprint) this.derived = fromCache(cache)
+    if (cache?.version === CACHE_VERSION && cache.fingerprint === fingerprint) this.derived = fromCache(cache)
     else await this.replayAll()
   }
 

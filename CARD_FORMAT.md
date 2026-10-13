@@ -2,13 +2,13 @@
 
 Cards reach the app only as UTF-8 JSON chapter files in the `chapters/` folder of `karticky-czech`, one file per chapter. This section is the rulebook for whoever writes those files; copy it verbatim into `CARD_FORMAT.md`.
 
-File names: `chapters/<order, 2 digits>-<slug>.json` (e.g. `chapters/01-greetings.json`), and `chapters/misc.json` for the misc chapter. Names are for humans; the app reads only the contents.
+File names: `chapters/<order, 2 digits>-<slug>.json` (e.g. `chapters/01-greetings.json`), and `chapters/misc.json` for the misc chapter. Names are for humans; the app reads only the contents. A new chapter arrives unticked: the user ticks it in the app when they want to study it. The misc chapter is always studied.
 
 | Top-level field | Required | Meaning |
 | --- | --- | --- |
 | `format` | Yes | Always `1` |
 | `chapter.id` | Yes | Unique across files; lowercase letters, digits and hyphens. `misc` is reserved for the misc chapter. If two files share an id, the later file by file name is skipped and reported |
-| `chapter.order` | Yes | Integer ≥ 1; chapters are studied in ascending order; gaps allowed; equal orders are broken by `chapter.id`. Ignored for misc (write `0`) |
+| `chapter.order` | Yes | Integer ≥ 1; ticked chapters are studied in ascending order; gaps allowed; equal orders are broken by `chapter.id`. Ignored for misc (write `0`) |
 | `chapter.title` | Yes | Shown in stats |
 | `words` | Yes | Array of words; array order is introduction order |
 

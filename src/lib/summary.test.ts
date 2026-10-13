@@ -4,7 +4,7 @@ import { parseChapterFiles } from './chapters'
 import type { LastSeenWord } from './db'
 import { makeEvent } from './events'
 import type { World } from './queue'
-import { replay } from './replay'
+import { includeKey, replay } from './replay'
 import { buildSummary, CARD_COLUMNS, sameSummary, seedsFromSummary, summaryText } from './summary'
 import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types'
 
@@ -129,6 +129,20 @@ describe('summary', () => {
     ])
     expect(s.byDirection['cz-en']).toMatchObject({ cards: 7, introduced: 1 })
     expect(s.byDirection['en-cz']).toMatchObject({ cards: 6, introduced: 0 })
+  })
+
+  it('marks ticked chapters and leaves paused cards out of dueToday', () => {
+    const log = new Log()
+    log.add('setting', { key: includeKey('sample'), value: 1 })
+    log.review('sample-001:cz-en', 3)
+    log.at(10)
+    let s = buildSummary(log.world(), 'd', new Map())
+    expect(s.byChapter[0]).toMatchObject({ id: 'sample', included: true, introduced: 1, learned: 0 })
+    expect(s.totals.dueToday).toBe(1)
+    log.add('setting', { key: includeKey('sample'), value: 0 })
+    s = buildSummary(log.world(), 'd', new Map())
+    expect(s.byChapter[0].included).toBe(false)
+    expect(s.totals.dueToday).toBe(0)
   })
 
   it('names removed words from the last-seen copy, or null if never seen', () => {

@@ -45,6 +45,8 @@ export interface Derived {
   /** Every word id mentioned by any event (its cards or itself). */
   historyWords: Set<string>
   newPerDay: number
+  /** Chapters ticked for study. The misc chapter is always studied and never appears here. */
+  included: Set<string>
   learnMore: Map<string, number>
   cleared: Set<string>
   /** The last event applied, to tell whether a new event can be applied on top. */
@@ -59,12 +61,18 @@ export function emptyDerived(): Derived {
     words: new Map(),
     historyWords: new Set(),
     newPerDay: NEW_PER_DAY_DEFAULT,
+    included: new Set(),
     learnMore: new Map(),
     cleared: new Set(),
     last: null,
     count: 0,
   }
 }
+
+const INCLUDE_PREFIX = 'include:'
+
+/** The `setting` key that ticks (value 1) or unticks (value 0) a chapter. */
+export const includeKey = (chapterId: string) => `${INCLUDE_PREFIX}${chapterId}`
 
 /** Matches eventsFingerprint() in db.ts when this state reflects exactly the stored events. */
 export function fingerprintOf(d: Derived): string {
@@ -126,6 +134,10 @@ export function applyEvent(d: Derived, e: AppEvent): void {
     case 'setting':
       if (e.key === 'newPerDay' && Number.isInteger(e.value)) {
         d.newPerDay = Math.min(NEW_PER_DAY_MAX, Math.max(NEW_PER_DAY_MIN, e.value!))
+      } else if (e.key!.startsWith(INCLUDE_PREFIX)) {
+        const chapterId = e.key!.slice(INCLUDE_PREFIX.length)
+        if (e.value) d.included.add(chapterId)
+        else d.included.delete(chapterId)
       }
       break
     case 'dayCleared':
@@ -166,12 +178,17 @@ interface CachedCard extends Omit<CardState, 'fsrs'> {
   fsrs: Omit<Card, 'due' | 'last_review'> & { due: string; last_review?: string }
 }
 
+/** Bump when Derived gains a field, so caches written by older versions are replayed instead of trusted. */
+export const CACHE_VERSION = 2
+
 export interface DerivedCache {
+  version: number
   fingerprint: string
   cards: [string, CachedCard][]
   words: [string, WordState][]
   historyWords: string[]
   newPerDay: number
+  included: string[]
   learnMore: [string, number][]
   cleared: string[]
   last: Derived['last']
@@ -180,6 +197,7 @@ export interface DerivedCache {
 
 export function toCache(d: Derived): DerivedCache {
   return {
+    version: CACHE_VERSION,
     fingerprint: fingerprintOf(d),
     cards: [...d.cards].map(([id, c]) => [
       id,
@@ -188,6 +206,7 @@ export function toCache(d: Derived): DerivedCache {
     words: [...d.words],
     historyWords: [...d.historyWords],
     newPerDay: d.newPerDay,
+    included: [...d.included],
     learnMore: [...d.learnMore],
     cleared: [...d.cleared],
     last: d.last,
@@ -213,6 +232,7 @@ export function fromCache(c: DerivedCache): Derived {
     words: new Map(c.words),
     historyWords: new Set(c.historyWords),
     newPerDay: c.newPerDay,
+    included: new Set(c.included),
     learnMore: new Map(c.learnMore),
     cleared: new Set(c.cleared),
     last: c.last,

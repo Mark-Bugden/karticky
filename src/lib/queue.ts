@@ -1,7 +1,7 @@
 // What to study today. Pure functions over the chapter set, the replayed state and a clock,
 // following the queue rules in the design document (numbered comments refer to them).
 
-import { LEARN_AHEAD_MINUTES, LEARN_MORE_COUNT } from './config'
+import { LEARN_AHEAD_MINUTES, LEARN_MORE_COUNT, LEARNED_STABILITY_DAYS, MOVE_ON_SHARE } from './config'
 import { MISC_ID } from './chapters'
 import { cardId, DIRECTIONS, parseCardId, siblingId } from './events'
 import { newCardState, State, type CardState, type Derived } from './replay'
@@ -31,6 +31,23 @@ export function isHidden(w: World, id: string): boolean {
   return w.derived.cards.get(id)?.suspended ?? false
 }
 
+/** The misc chapter is always studied; any other chapter only while it is ticked. */
+export function isIncluded(w: World, chapterId: string): boolean {
+  return chapterId === MISC_ID || w.derived.included.has(chapterId)
+}
+
+/** Rule 1, paused: cards of an unticked chapter are not shown at all, but keep their history. */
+export function isPaused(w: World, id: string): boolean {
+  const word = w.set.words.get(parseCardId(id).wordId)
+  return word !== undefined && !isIncluded(w, word.chapterId)
+}
+
+/** Hidden or paused: left out of today's study entirely. */
+const isOut = (w: World, id: string) => isHidden(w, id) || isPaused(w, id)
+
+/** Learned: in review, with FSRS confident in it for at least LEARNED_STABILITY_DAYS. */
+export const isLearned = (c: CardState) => c.fsrs.state === State.Review && c.fsrs.stability >= LEARNED_STABILITY_DAYS
+
 /** Rule 2: once either card of a word has been reviewed today, the other waits until tomorrow. */
 export function isBuried(w: World, id: string, today = studyDay(w.now)): boolean {
   return !reviewedOn(cardState(w.derived, id), today) && reviewedOn(cardState(w.derived, siblingId(id)), today)
@@ -55,11 +72,11 @@ export function dueCards(w: World): string[] {
   const today = studyDay(w.now)
   const out: string[] = []
   for (const [id, c] of w.derived.cards) {
-    if (!isDueNow(c, w.now, today) || isHidden(w, id) || isBuried(w, id, today)) continue
+    if (!isDueNow(c, w.now, today) || isOut(w, id) || isBuried(w, id, today)) continue
     const sib = siblingId(id)
     const s = cardState(w.derived, sib)
     const bothDueUnseen =
-      isDueNow(s, w.now, today) && !isHidden(w, sib) && !reviewedOn(c, today) && !reviewedOn(s, today)
+      isDueNow(s, w.now, today) && !isOut(w, sib) && !reviewedOn(c, today) && !reviewedOn(s, today)
     if (bothDueUnseen) {
       // Show the one due earlier; Czech→English on a tie. The other is buried once this one is seen.
       const sibFirst = s.fsrs.due < c.fsrs.due || (s.fsrs.due.getTime() === c.fsrs.due.getTime() && sib.endsWith(':cz-en'))
@@ -77,6 +94,8 @@ export function eligibleNewCards(w: World): string[] {
   let gateOpen = true
   for (const ch of w.set.chapters) {
     const misc = ch.id === MISC_ID
+    // An unticked chapter gives no new cards and holds no later chapter back.
+    if (!isIncluded(w, ch.id)) continue
     if (!misc && !gateOpen) break
     let complete = true
     for (const wordId of ch.wordIds) {
@@ -93,7 +112,7 @@ export function eligibleNewCards(w: World): string[] {
         out.push(id)
       }
     }
-    // Rule 5: a chapter opens once every lower-order chapter is fully introduced. Misc never gates.
+    // Rule 5: a chapter opens once every lower-order ticked chapter is fully introduced. Misc never gates.
     if (!misc && !complete) gateOpen = false
   }
   return out
@@ -113,7 +132,7 @@ export function nextLearning(w: World): { id: string; due: Date } | null {
   const today = studyDay(w.now)
   let best: { id: string; due: Date } | null = null
   for (const [id, c] of w.derived.cards) {
-    if (!isLearning(c) || c.fsrs.due <= w.now || isHidden(w, id) || isBuried(w, id, today)) continue
+    if (!isLearning(c) || c.fsrs.due <= w.now || isOut(w, id) || isBuried(w, id, today)) continue
     if (!best || c.fsrs.due < best.due) best = { id, due: c.fsrs.due }
   }
   return best
@@ -228,12 +247,12 @@ export function pickNext(w: World, plan: Plan): Next {
 
 // ---- Streak ----
 
-/** A study day is cleared once no unhidden, unburied card is due before the day ends. New cards do not count. */
+/** A study day is cleared once no unhidden, unpaused, unburied card is due before the day ends. New cards do not count. */
 export function isDayCleared(w: World): boolean {
   const today = studyDay(w.now)
   const end = dayEnd(today)
   for (const [id, c] of w.derived.cards) {
-    if (c.fsrs.state === State.New || isHidden(w, id) || isBuried(w, id, today)) continue
+    if (c.fsrs.state === State.New || isOut(w, id) || isBuried(w, id, today)) continue
     const dueToday = c.fsrs.state === State.Review ? studyDay(c.fsrs.due) <= today : c.fsrs.due < end
     if (dueToday) return false
   }
@@ -259,23 +278,48 @@ export function streak(cleared: Set<string>, today: string): { current: number; 
 
 export interface ChapterProgress {
   chapter: Chapter
+  included: boolean
   /** Cards introduced, out of the chapter's non-hidden cards. */
   introduced: number
+  /** Cards FSRS has been confident in for at least LEARNED_STABILITY_DAYS. */
+  learned: number
   total: number
 }
 
 export function chapterProgress(w: World): ChapterProgress[] {
   return w.set.chapters.map((chapter) => {
     let introduced = 0
+    let learned = 0
     let total = 0
     for (const wordId of chapter.wordIds) {
       for (const dir of DIRECTIONS) {
         const id = cardId(wordId, dir)
         if (isHidden(w, id)) continue
         total++
-        if (cardState(w.derived, id).introduced) introduced++
+        const c = cardState(w.derived, id)
+        if (c.introduced) introduced++
+        if (isLearned(c)) learned++
       }
     }
-    return { chapter, introduced, total }
+    return { chapter, included: isIncluded(w, chapter.id), introduced, learned, total }
   })
+}
+
+/**
+ * The chapter to suggest studying next: once every ticked chapter is fully introduced and
+ * MOVE_ON_SHARE of their cards are learned, the first unticked chapter after the last ticked one.
+ */
+export function suggestedChapter(progress: ChapterProgress[]): Chapter | null {
+  const isTicked = (p: ChapterProgress) => p.included && p.chapter.id !== MISC_ID
+  const lastTicked = progress.findLastIndex(isTicked)
+  if (lastTicked < 0) return null
+  let learned = 0
+  let total = 0
+  for (const p of progress.filter(isTicked)) {
+    if (p.introduced < p.total) return null
+    learned += p.learned
+    total += p.total
+  }
+  if (learned < MOVE_ON_SHARE * total) return null
+  return progress.slice(lastTicked + 1).find((p) => !p.included && p.chapter.id !== MISC_ID)?.chapter ?? null
 }

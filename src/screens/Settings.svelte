@@ -1,6 +1,7 @@
 <script lang="ts">
   import SyncLine from '../components/SyncLine.svelte'
   import { app } from '../lib/app.svelte'
+  import { MISC_ID } from '../lib/chapters'
   import { NEW_PER_DAY_MAX, NEW_PER_DAY_MIN } from '../lib/config'
   import { directionLabel } from '../lib/format'
 
@@ -21,6 +22,12 @@
       <button class="btn" aria-label="More" disabled={app.newPerDay >= NEW_PER_DAY_MAX} onclick={() => app.stepNewPerDay(1)}>+</button>
     </div>
     <p class="muted small">Applies on both devices.</p>
+  </section>
+
+  <section>
+    <h2>Chapters</h2>
+    <p class="muted small">{app.ticked.length} of {app.progress.filter((p) => p.chapter.id !== MISC_ID).length} ticked.</p>
+    <button class="btn" onclick={() => app.go('chapters')}>Choose chapters</button>
   </section>
 
   <section>

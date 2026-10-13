@@ -53,8 +53,15 @@ any of them could read the token.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
 - **Undo** reverts the last grade and shows that card again. **⋯** on the card: Suspend this card,
   Flag the word for fixing, or Delete the word.
-- New cards: 10 a day by default (Settings). Czech→English cards come first; their English→Czech
-  cards arrive from the next day. A chapter starts once the previous one is fully introduced.
+- **Chapters**: tick the chapters to study under Home → Choose (or Settings → Choose chapters), for
+  example when you've done a lesson in class. New chapter files arrive unticked. An unticked chapter
+  is paused: none of its cards are shown, and they keep their history for when it is ticked again.
+- **Moving on**: once every ticked chapter is fully introduced and 80% of its cards are learned
+  (remembered after a gap, so the scheduler is confident for 7+ days), Home suggests the next
+  chapter, with one tap to add it.
+- New cards: 10 a day by default (Settings), from ticked chapters in order: a chapter starts once the
+  ticked ones before it are fully introduced. Czech→English cards come first; their English→Czech
+  cards arrive from the next day.
 - Sync runs on its own (on opening, every 5 minutes, when the connection returns, and on leaving).
   "Not synced" means there are reviews on this device that haven't reached GitHub yet; studying
   always works offline.
@@ -91,12 +98,12 @@ GitHub Pages.
 | `src/lib/chapters.ts` | Chapter-file parser and validator, content hash |
 | `src/lib/events.ts`, `src/lib/db.ts` | Event shape and the IndexedDB store (Dexie) |
 | `src/lib/replay.ts` | Rebuilds card state from events (ts-fsrs) and caches it |
-| `src/lib/queue.ts` | Queue rules, session order, streak, chapter progress (pure functions) |
+| `src/lib/queue.ts` | Queue rules, session order, streak, chapter progress and the next-chapter suggestion (pure functions) |
 | `src/lib/summary.ts` | The summary file |
 | `src/lib/github.ts`, `src/lib/sync.ts` | GitHub Git Data API client and the sync protocol |
 | `src/lib/engine.ts` | Data core without UI: load, record, replay, sync |
 | `src/lib/app.svelte.ts` | App state for the screens: timers, sync triggers, study session |
-| `src/screens/`, `src/components/` | Setup, Home, Study, Settings |
+| `src/screens/`, `src/components/` | Setup, Home, Study, Settings, Chapters |
 | `src/lib/testing/fakeGitHub.ts` | In-memory GitHub used by the sync tests |
 
 Card state is never stored as truth: it is rebuilt by replaying the append-only event log. Each device
@@ -120,15 +127,18 @@ summary.
 - **Content hash**: SHA-256 of the nine content fields joined with the U+001F separator, a missing
   field counting as empty; first 16 hex characters.
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
-  event id) and replayed again whenever the fingerprint no longer matches. Measured: 30,000 events
+  event id) and a format version, and replayed again whenever either no longer matches. Measured: 30,000 events
   replay in about 120 ms on the development computer.
 - **New cards per day**: the stepper records one `setting` event after a short pause or on leaving
   Settings, not one per tap.
 - **Chapter files over 500 KB** are reported in the summary and Settings but still load.
-- **Misc does not gate chapters**: chapter gating looks only at chapters with a lower `order`.
+- **Misc does not gate chapters**: chapter gating looks only at ticked chapters with a lower `order`.
+  Misc is always studied and has no tick box.
+- **Ticks are `setting` events** with key `include:<chapter id>` and value 1 or 0, so a device still
+  on an older version keeps them in its database instead of dropping them.
 - **Both directions due, neither seen today**: the one due earlier is shown; on a tie,
   Czech→English.
-- **Navigation**: Study has a ✕ to return Home and Settings has a back arrow; the Android back
+- **Navigation**: Study has a ✕ to return Home and Settings and Chapters have a back arrow; the Android back
   gesture and Esc also return Home.
 - **Several windows** of the app on one device (for example a browser tab and the installed app)
   share one database: syncs are serialised with a Web Lock, and a window reloads its state when it

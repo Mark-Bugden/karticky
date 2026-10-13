@@ -1,6 +1,7 @@
 // App state for the screens: wraps the Engine, runs sync triggers and timers, and holds the
 // current study session. Screens read these fields and call these methods.
 
+import { MISC_ID } from './chapters'
 import { GITHUB_OWNER, GITHUB_REPO, SYNC_INTERVAL_MS } from './config'
 import { getMeta, KartickyDB, setMeta, unpushedCount, type LastSeenWord } from './db'
 import { emptyChapterSet, Engine } from './engine'
@@ -14,15 +15,16 @@ import {
   isFlagged,
   pickNext,
   streak,
+  suggestedChapter,
   type Plan,
   type World,
 } from './queue'
-import { emptyDerived, type Derived } from './replay'
+import { emptyDerived, includeKey, type Derived } from './replay'
 import { dayEnd, formatLocalDate, studyDay } from './studyDay'
 import type { ChapterSet, Direction, Grade, Word } from './types'
 import { SyncQueue } from './sync'
 
-export type Screen = 'loading' | 'setup' | 'home' | 'study' | 'settings'
+export type Screen = 'loading' | 'setup' | 'home' | 'study' | 'settings' | 'chapters'
 
 /** The word content shown on a card, frozen when the card appears. */
 export type WordView = Partial<Word> & { id: string; cz?: string; en?: string }
@@ -82,6 +84,9 @@ class AppState {
   world: World = $derived({ now: this.now, set: this.set, derived: this.derived })
   status = $derived(dayStatus(this.world))
   progress = $derived(chapterProgress(this.world))
+  /** Ticked chapters other than misc, in study order. */
+  ticked = $derived(this.progress.filter((p) => p.included && p.chapter.id !== MISC_ID))
+  suggestion = $derived(suggestedChapter(this.progress))
   streakDays = $derived(streak(this.derived.cleared, studyDay(this.now)).current)
   newPerDay = $derived(this.pendingNewPerDay ?? this.derived.newPerDay)
   notSynced = $derived(this.sync.unpushed > 0 && (!this.sync.online || this.sync.problem !== null))
@@ -447,6 +452,14 @@ class AppState {
     if (value === null) return
     if (value !== this.derived.newPerDay) await this.engine.record('setting', { key: 'newPerDay', value })
     this.pendingNewPerDay = null
+    this.refresh()
+    await this.afterChange()
+  }
+
+  /** Ticks or unticks a chapter on every device. */
+  async setIncluded(chapterId: string, on: boolean): Promise<void> {
+    if (on === this.derived.included.has(chapterId)) return
+    await this.engine.record('setting', { key: includeKey(chapterId), value: on ? 1 : 0 })
     this.refresh()
     await this.afterChange()
   }

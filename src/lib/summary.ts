@@ -11,7 +11,7 @@ import {
 } from './config'
 import type { LastSeenWord } from './db'
 import { cardId, DIRECTIONS, parseCardId } from './events'
-import { cardState, isFlagged, isHidden, streak, type World } from './queue'
+import { cardState, isFlagged, isHidden, isIncluded, isLearned, isPaused, streak, type World } from './queue'
 import { State, type CardState } from './replay'
 import { addDays, dayEnd, studyDay } from './studyDay'
 import type { Direction, FileError } from './types'
@@ -50,6 +50,7 @@ export interface GroupMetrics {
   words: number
   cards: number
   introduced: number
+  learned: number
   mature: number
   reviews: number
   lapses: number
@@ -64,7 +65,7 @@ export interface Summary {
   settings: { newPerDay: number; retention: number }
   streak: { current: number; longest: number }
   totals: { words: number; cards: number; introduced: number; reviews: number; lapses: number; dueToday: number }
-  byChapter: ({ id: string; title: string; order: number } & GroupMetrics)[]
+  byChapter: ({ id: string; title: string; order: number; included: boolean } & GroupMetrics)[]
   byDirection: Record<Direction, GroupMetrics>
   cardColumns: typeof CARD_COLUMNS
   cards: CardRow[]
@@ -86,6 +87,7 @@ function metrics(ids: string[], w: World, today: string): GroupMetrics {
   const since = addDays(today, -(RETENTION_WINDOW_DAYS - 1))
   const words = new Set<string>()
   let introduced = 0
+  let learned = 0
   let mature = 0
   let reviews = 0
   let lapses = 0
@@ -101,6 +103,7 @@ function metrics(ids: string[], w: World, today: string): GroupMetrics {
       introduced++
       difficultySum += c.fsrs.difficulty
     }
+    if (isLearned(c)) learned++
     if (c.fsrs.state === State.Review && c.fsrs.stability >= MATURE_STABILITY_DAYS) mature++
     for (const r of c.reviews) {
       if (r.before !== State.Review || r.day < since || r.day > today) continue
@@ -112,6 +115,7 @@ function metrics(ids: string[], w: World, today: string): GroupMetrics {
     words: words.size,
     cards: ids.length,
     introduced,
+    learned,
     mature,
     reviews,
     lapses,
@@ -153,7 +157,7 @@ export function buildSummary(w: World, deviceId: string, lastSeen: Map<string, L
   const totals = metrics(visible, w, today)
   const dueToday = visible.filter((id) => {
     const c = cardState(w.derived, id)
-    if (isNew(c)) return false
+    if (isNew(c) || isPaused(w, id)) return false
     return c.fsrs.state === State.Review ? studyDay(c.fsrs.due) <= today : c.fsrs.due < end
   }).length
 
@@ -176,7 +180,8 @@ export function buildSummary(w: World, deviceId: string, lastSeen: Map<string, L
     },
     byChapter: w.set.chapters.map((ch) => {
       const ids = ch.wordIds.flatMap((wordId) => DIRECTIONS.map((d) => cardId(wordId, d))).filter((id) => !isHidden(w, id))
-      return { id: ch.id, title: ch.title, order: ch.id === MISC_ID ? 0 : ch.order, ...metrics(ids, w, today) }
+      const order = ch.id === MISC_ID ? 0 : ch.order
+      return { id: ch.id, title: ch.title, order, included: isIncluded(w, ch.id), ...metrics(ids, w, today) }
     }),
     byDirection: {
       'cz-en': metrics(visible.filter((id) => id.endsWith(':cz-en')), w, today),

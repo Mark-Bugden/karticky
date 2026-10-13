@@ -2,8 +2,11 @@
   import SyncLine from '../components/SyncLine.svelte'
   import { app } from '../lib/app.svelte'
   import { MISC_ID } from '../lib/chapters'
+  import { chapterLabel, learnedPercent } from '../lib/format'
 
   const st = $derived(app.status)
+  /** Ticked chapters, plus misc once it has cards. */
+  const shown = $derived(app.progress.filter((p) => p.included && (p.chapter.id !== MISC_ID || p.total > 0)))
 </script>
 
 <main class="page">
@@ -25,41 +28,66 @@
       {/if}
     </section>
   {:else}
-    <section class="today">
-      <div class="stat">
-        <span class="num">{st.due}</span>
-        <span class="label">due now</span>
-      </div>
-      <div class="stat">
-        <span class="num">{st.newAvailable}</span>
-        <span class="label">new today</span>
-      </div>
-    </section>
+    {#if app.ticked.length === 0}
+      <section class="notice">
+        <p>Choose the chapters you want to study. You can change them at any time.</p>
+        <button class="btn primary" onclick={() => app.go('chapters')}>Choose chapters</button>
+      </section>
+    {/if}
 
-    <section class="actions">
-      {#if st.done}
-        <p class="done">Done for today</p>
-        {#if st.canLearnMore}
-          <button class="btn" onclick={() => app.learnMore()}>Learn 5 more</button>
+    {#if app.ticked.length > 0 || st.due > 0 || st.newAvailable > 0}
+      <section class="today">
+        <div class="stat">
+          <span class="num">{st.due}</span>
+          <span class="label">due now</span>
+        </div>
+        <div class="stat">
+          <span class="num">{st.newAvailable}</span>
+          <span class="label">new today</span>
+        </div>
+      </section>
+
+      <section class="actions">
+        {#if st.done}
+          <p class="done">Done for today</p>
+          {#if st.canLearnMore}
+            <button class="btn" onclick={() => app.learnMore()}>Learn 5 more</button>
+          {/if}
+        {:else}
+          <button class="btn primary study" onclick={() => app.startStudy()}>Study</button>
         {/if}
-      {:else}
-        <button class="btn primary study" onclick={() => app.startStudy()}>Study</button>
-      {/if}
-    </section>
+      </section>
 
-    <p class="streak">Streak: {app.streakDays} {app.streakDays === 1 ? 'day' : 'days'}</p>
+      <p class="streak">Streak: {app.streakDays} {app.streakDays === 1 ? 'day' : 'days'}</p>
+    {/if}
 
-    <section>
-      <h2>Chapters</h2>
-      <ul class="chapters">
-        {#each app.progress as p (p.chapter.id)}
-          <li>
-            <span>{p.chapter.id === MISC_ID ? p.chapter.title : `${p.chapter.order} · ${p.chapter.title}`}</span>
-            <span class="muted">{p.introduced}/{p.total}</span>
-          </li>
-        {/each}
-      </ul>
-    </section>
+    {#if app.suggestion}
+      {@const next = app.suggestion}
+      <section class="notice">
+        <p>You've learned most of your chapters. Ready for <strong>{chapterLabel(next)}</strong>?</p>
+        <button class="btn" onclick={() => app.setIncluded(next.id, true)}>Add it</button>
+      </section>
+    {/if}
+
+    {#if shown.length > 0}
+      <section>
+        <div class="chapters-head">
+          <h2>Chapters</h2>
+          <button class="btn small" onclick={() => app.go('chapters')}>Choose</button>
+        </div>
+        <ul class="chapters">
+          {#each shown as p (p.chapter.id)}
+            <li>
+              <span>{chapterLabel(p.chapter)}</span>
+              <span class="figures">
+                <span class="muted">{p.introduced}/{p.total}</span>
+                <span class="muted small">{learnedPercent(p)}% learned</span>
+              </span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
   {/if}
 </main>
 
@@ -136,6 +164,7 @@
   }
   .chapters li {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
@@ -143,5 +172,36 @@
   }
   .chapters li + li {
     border-top: 1px solid var(--border);
+  }
+  .chapters-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 28px 0 8px;
+  }
+  .chapters-head h2 {
+    margin: 0;
+  }
+  .figures {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: none;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+  .notice {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+  .notice p {
+    margin: 0;
   }
 </style>

@@ -11,12 +11,15 @@ import {
   isBuried,
   isDayCleared,
   isFlagged,
+  isPaused,
   newAllowance,
   pickNext,
   streak,
+  suggestedChapter,
+  type ChapterProgress,
   type World,
 } from './queue'
-import { applyEvent, canApplyIncrementally, fromCache, replay, State, toCache } from './replay'
+import { applyEvent, CACHE_VERSION, canApplyIncrementally, fromCache, includeKey, replay, State, toCache } from './replay'
 import { studyDay } from './studyDay'
 import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types'
 
@@ -53,11 +56,18 @@ class Sim {
   events: AppEvent[] = []
   now: Date
 
+  /** Ticks every chapter first unless told which ones to tick. */
   constructor(
     public set: ChapterSet,
     start = new Date(2026, 9, 13, 8, 0),
+    tick: string[] = set.chapters.map((ch) => ch.id),
   ) {
     this.now = start
+    for (const id of tick) this.include(id)
+  }
+
+  include(chapterId: string, on = true): AppEvent {
+    return this.add('setting', { key: includeKey(chapterId), value: on ? 1 : 0 })
   }
 
   world(): World {
@@ -220,7 +230,9 @@ describe('new cards', () => {
 
   it('shows 16 cards for the sample: 8 words, both directions', () => {
     const w = new Sim(chapterSet([sample()])).world()
-    expect(chapterProgress(w)).toEqual([{ chapter: expect.objectContaining({ id: 'sample', title: 'Sample' }), introduced: 0, total: 16 }])
+    expect(chapterProgress(w)).toEqual([
+      { chapter: expect.objectContaining({ id: 'sample', title: 'Sample' }), included: true, introduced: 0, learned: 0, total: 16 },
+    ])
   })
 
   it('allows 10 a day by default, and exactly 5 more per "Learn 5 more"', () => {
@@ -451,5 +463,103 @@ describe('streak', () => {
     sim.minutes(10)
     sim.review('c1-001:cz-en', 3)
     expect(isDayCleared(sim.world())).toBe(true)
+  })
+})
+
+// ---- Chapter ticking ----
+
+const progressRow = (id: string, order: number, included: boolean, introduced: number, learned: number, total = 10): ChapterProgress => ({
+  chapter: { id, order, title: id, file: `chapters/${id}.json`, wordIds: [] },
+  included,
+  introduced,
+  learned,
+  total,
+})
+
+describe('chapter ticking', () => {
+  const threeChapters = () => chapterSet([chapterFile('c1', 1, 3), chapterFile('c2', 2, 3), chapterFile('c3', 3, 3)])
+
+  it('replays ticks and unticks, the latest winning, and keeps them through the cache', () => {
+    const sim = new Sim(threeChapters(), undefined, [])
+    expect([...sim.world().derived.included]).toEqual([])
+    sim.include('c1')
+    sim.include('c3')
+    sim.include('c1', false)
+    const d = sim.world().derived
+    expect([...d.included]).toEqual(['c3'])
+    const cache = toCache(d)
+    expect(cache.version).toBe(CACHE_VERSION)
+    expect([...fromCache(JSON.parse(JSON.stringify(cache))).included]).toEqual(['c3'])
+  })
+
+  it('introduces nothing until a chapter is ticked, except misc', () => {
+    const misc: RawFile = {
+      path: 'chapters/misc.json',
+      text: JSON.stringify({ format: 1, chapter: { id: 'misc', order: 0, title: 'Misc' }, words: words('misc', 1) }),
+    }
+    const sim = new Sim(chapterSet([misc, chapterFile('c1', 1, 3)]), undefined, [])
+    expect(eligibleNewCards(sim.world())).toEqual(['misc-001:cz-en'])
+    sim.include('c1')
+    expect(eligibleNewCards(sim.world())).toEqual(['misc-001:cz-en', 'c1-001:cz-en', 'c1-002:cz-en', 'c1-003:cz-en'])
+  })
+
+  it('gates ticked chapters in order, while unticked chapters hold nothing back', () => {
+    const sim = new Sim(threeChapters(), undefined, ['c2', 'c3'])
+    expect(eligibleNewCards(sim.world())).toEqual(['c2-001:cz-en', 'c2-002:cz-en', 'c2-003:cz-en'])
+    sim.include('c1')
+    expect(eligibleNewCards(sim.world()).every((id) => id.startsWith('c1-'))).toBe(true)
+  })
+
+  it('pauses an unticked chapter entirely and resumes it with its history when ticked again', () => {
+    const sim = new Sim(threeChapters(), undefined, ['c1'])
+    sim.studyAll()
+    sim.days(3)
+    expect(dueCards(sim.world())).toHaveLength(3)
+    sim.include('c1', false)
+    const w = sim.world()
+    expect(isPaused(w, 'c1-001:cz-en')).toBe(true)
+    expect(dueCards(w)).toEqual([])
+    expect(eligibleNewCards(w)).toEqual([])
+    expect(isDayCleared(w)).toBe(true)
+    expect(w.derived.cards.get('c1-001:cz-en')?.reviews).toHaveLength(1)
+    sim.include('c1')
+    expect(dueCards(sim.world())).toHaveLength(3)
+  })
+
+  it('counts a card as learned once it has been remembered after a gap', () => {
+    const sim = new Sim(threeChapters(), undefined, ['c1'])
+    sim.studyAll() // Czech→English introduced, next due in 2 days
+    sim.days(1)
+    sim.studyAll() // English→Czech introduced
+    expect(chapterProgress(sim.world())[0]).toMatchObject({ introduced: 6, learned: 0 })
+    sim.days(1)
+    sim.studyAll() // Czech→English remembered after the gap
+    expect(chapterProgress(sim.world())[0]).toMatchObject({ introduced: 6, learned: 3 })
+  })
+
+  it('suggests the next chapter once the ticked ones are introduced and 80% learned', () => {
+    expect(suggestedChapter([progressRow('c1', 1, true, 10, 8), progressRow('c2', 2, false, 0, 0)])?.id).toBe('c2')
+    expect(suggestedChapter([progressRow('c1', 1, true, 10, 7), progressRow('c2', 2, false, 0, 0)])).toBeNull()
+    expect(suggestedChapter([progressRow('c1', 1, true, 9, 9), progressRow('c2', 2, false, 0, 0)])).toBeNull()
+    expect(suggestedChapter([progressRow('c1', 1, false, 0, 0), progressRow('c2', 2, false, 0, 0)])).toBeNull()
+    // Misc never counts, and a chapter skipped before the last ticked one is not offered again.
+    const rows = [progressRow('misc', 0, true, 0, 0, 5), progressRow('c1', 1, true, 10, 10), progressRow('c2', 2, false, 0, 0)]
+    expect(suggestedChapter(rows)?.id).toBe('c2')
+    expect(suggestedChapter([...rows, progressRow('c3', 3, true, 10, 10)])).toBeNull()
+    expect(suggestedChapter([...rows, progressRow('c3', 3, true, 10, 10), progressRow('c4', 4, false, 0, 0)])?.id).toBe('c4')
+  })
+
+  it('reaches the suggestion by studying', () => {
+    const sim = new Sim(threeChapters(), undefined, ['c1'])
+    const suggestion = () => suggestedChapter(chapterProgress(sim.world()))?.id ?? null
+    sim.studyAll()
+    sim.days(1)
+    sim.studyAll()
+    expect(suggestion()).toBeNull() // all introduced, nothing learned yet
+    for (let i = 0; i < 5 && !suggestion(); i++) {
+      sim.days(1)
+      sim.studyAll()
+    }
+    expect(suggestion()).toBe('c2')
   })
 })

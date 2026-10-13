@@ -25,6 +25,10 @@ export const SYNC_INTERVAL_MS = 5 * 60 * 1000
 export const SYNC_RETRY_DELAYS_MS = [2000, 4000, 8000]
 
 export const MATURE_STABILITY_DAYS = 21
+/** A card counts as learned once FSRS is confident in it for this many days: remembered after a gap, roughly. */
+export const LEARNED_STABILITY_DAYS = 7
+/** The next chapter is suggested once this share of the ticked chapters' cards is learned. */
+export const MOVE_ON_SHARE = 0.8
 export const STRUGGLING_LAPSES = 4
 export const STRUGGLING_DIFFICULTY = 8
 export const RETENTION_WINDOW_DAYS = 30
