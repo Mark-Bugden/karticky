@@ -20,7 +20,7 @@ connection, and keeps two devices in step through a private GitHub repository.
    2. In the left sidebar, click **Developer settings**.
    3. In the left sidebar, under **Personal access tokens**, click **Fine-grained tokens**.
    4. Click **Generate new token**.
-   5. **Token name**: "Kartičky laptop" or "Kartičky phone".
+   5. **Token name**: "Kartičky computer" or "Kartičky phone".
    6. **Expiration**: No expiration.
    7. **Resource owner**: Mark-Bugden.
    8. **Repository access**: Only select repositories, then pick `karticky-czech`.
@@ -30,11 +30,14 @@ connection, and keeps two devices in step through a private GitHub repository.
 
    One token per device means no secret moves between devices, and either can be revoked alone.
    Paste the token only into the app, never anywhere else.
-5. Laptop: open https://mark-bugden.github.io/karticky/ in Chrome and click the install icon in the
+5. Computer: open https://mark-bugden.github.io/karticky/ in Chrome and click the install icon in the
    address bar (or ⋮ → Cast, save and share → Install page as app). Open the app and paste the token.
-6. Phone: open the same address in Chrome, then ⋮ → Add to Home screen → Install. If nothing happens
-   on a Xiaomi phone, allow it: Settings → Apps → Manage apps → Chrome → Other permissions → Home
-   screen shortcuts → Allow. Open the app from the home screen and paste the token.
+6. Phone: open the same address in Chrome and open the ⋮ menu. Choose **Install**, not "Create
+   shortcut" (a shortcut only opens a Chrome tab). If no icon appears on a Xiaomi phone, allow it:
+   Settings → Apps → Manage apps → Chrome → Other permissions → Home screen shortcuts → Allow.
+   Open the app from the home screen and paste the phone token. If you created that token on the
+   computer, don't send it to the phone: on the phone, open the token on github.com, choose
+   **Regenerate token** and copy the new value there.
 7. When the first real chapter is added, delete `chapters/sample.json` from `karticky-czech`. Its
    cards then disappear from the app.
 
@@ -45,8 +48,8 @@ any of them could read the token.
 ## Using the app
 
 - **Reveal**: double-tap the card on the phone (a single tap does nothing); Space or double-click on
-  the laptop.
-- **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the laptop.
+  the computer.
+- **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
 - **Undo** reverts the last grade and shows that card again. **⋯** on the card: Suspend this card,
   Flag the word for fixing, or Delete the word.
 - New cards: 10 a day by default (Settings). Czech→English cards come first; their English→Czech
@@ -117,7 +120,7 @@ summary.
   field counting as empty; first 16 hex characters.
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
   event id) and replayed again whenever the fingerprint no longer matches. Measured: 30,000 events
-  replay in about 120 ms on the laptop.
+  replay in about 120 ms on the development computer.
 - **New cards per day**: the stepper records one `setting` event after a short pause or on leaving
   Settings, not one per tap.
 - **Chapter files over 500 KB** are reported in the summary and Settings but still load.
@@ -136,7 +139,7 @@ summary.
 
 Ideas noted while building V1, not built:
 
-- A keyboard shortcut for Undo on the laptop (for example U).
+- A keyboard shortcut for Undo on the computer (for example U).
 - Show how many reviews are waiting to sync next to "Not synced".
 - Tune FSRS parameters to the review history once there is enough of it.
 - A clearer settings icon (the system gear glyph varies by platform).
