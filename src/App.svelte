@@ -1,17 +1,27 @@
-<main>
-  <h1>Kartičky</h1>
-  <p>Czech vocabulary flashcards. The study screens arrive in a later version.</p>
-  <p class="version">Version {__BUILD_DATE__} · {__BUILD_COMMIT__}</p>
-</main>
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import { app } from './lib/app.svelte'
+  import Home from './screens/Home.svelte'
+  import Settings from './screens/Settings.svelte'
+  import Setup from './screens/Setup.svelte'
+  import Study from './screens/Study.svelte'
 
-<style>
-  main {
-    padding: 24px 16px;
-    max-width: 640px;
-    margin: 0 auto;
-  }
-  .version {
-    color: var(--muted);
-    font-size: 0.875rem;
-  }
-</style>
+  onMount(() => {
+    void app.init()
+  })
+</script>
+
+{#if app.fatal}
+  <main class="page">
+    <h1>Kartičky</h1>
+    <p>{app.fatal}</p>
+  </main>
+{:else if app.screen === 'setup'}
+  <Setup />
+{:else if app.screen === 'home'}
+  <Home />
+{:else if app.screen === 'study'}
+  <Study />
+{:else if app.screen === 'settings'}
+  <Settings />
+{/if}

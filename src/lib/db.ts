@@ -53,6 +53,7 @@ export interface Meta {
   token: string
   lastPulledCommit: string
   lastPulledTree: string
+  /** Time of the last successful sync (ISO). */
   lastSyncAt: string
   persistRequested: boolean
   derivedCache: unknown
@@ -117,6 +118,10 @@ export async function allEvents(db: KartickyDB): Promise<StoredEvent[]> {
 
 export async function unpushedEvents(db: KartickyDB): Promise<StoredEvent[]> {
   return db.events.where('pushed').equals(0).toArray()
+}
+
+export async function unpushedCount(db: KartickyDB): Promise<number> {
+  return db.events.where('pushed').equals(0).count()
 }
 
 /** This device's events on one UTC date, sorted, for writing its full log file. */
