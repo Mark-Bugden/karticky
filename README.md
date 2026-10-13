@@ -47,8 +47,9 @@ any of them could read the token.
 
 ## Using the app
 
-- **Reveal**: double-tap the card on the phone (a single tap does nothing); Space or double-click on
-  the computer.
+- **Reveal**: tap the card on the phone; Space or double-click on the computer.
+- **Gender colours** (as in Czech Express): light blue masculine animate, dark purple-blue masculine
+  inanimate, red feminine, green neuter.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
 - **Undo** reverts the last grade and shows that card again. **⋯** on the card: Suspend this card,
   Flag the word for fixing, or Delete the word.
@@ -132,6 +133,14 @@ summary.
 - **Several windows** of the app on one device (for example a browser tab and the installed app)
   share one database: syncs are serialised with a Web Lock, and a window reloads its state when it
   falls behind.
+- **Gender colours** come from the publisher's Čeština expres 3 vocabulary list (`#00aeef`,
+  `#24408f`, `#d2232a`, `#40ad49`). Printed on paper they are fine, but on screen some fall below
+  4.5:1 contrast: light theme darkens the light blue to `#0177a5` and the green to `#04811f`; dark theme
+  lightens the dark blue to `#6588de` and the red to `#f84d4a`. Hue is kept; only lightness changes.
+- **Dark manifest colours**: Chrome on Android colours an installed app's bottom navigation bar
+  from the manifest, which has no dark variant, so a light value left a white bar under the dark
+  theme. `theme_color` and `background_color` are therefore dark (`#14171b`); in light mode the bar
+  is dark too. The page's `theme-color` meta still sets the top bar.
 - **Content Security Policy** in the built page: scripts only from the app itself, network only to
   the app and `api.github.com`.
 

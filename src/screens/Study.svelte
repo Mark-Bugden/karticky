@@ -14,20 +14,23 @@
   let menuOpen = $state(false)
   let confirmDelete = $state(false)
   let lastPointer = 'mouse'
-  let lastTap = { t: 0, x: 0, y: 0 }
+  let down: { x: number; y: number } | null = null
 
   const s = $derived(app.study)
 
-  // A single tap does nothing; a double-tap reveals. Mouse users double-click instead.
+  function onPointerDown(e: PointerEvent) {
+    lastPointer = e.pointerType
+    down = { x: e.clientX, y: e.clientY }
+  }
+
+  // On a touch screen one tap on the card reveals it. Mouse users press Space or double-click.
   function onPointerUp(e: PointerEvent) {
-    if (e.pointerType === 'mouse') return
-    const near = Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40
-    if (e.timeStamp - lastTap.t < 350 && near) {
-      lastTap = { t: 0, x: 0, y: 0 }
-      app.reveal()
-    } else {
-      lastTap = { t: e.timeStamp, x: e.clientX, y: e.clientY }
-    }
+    const start = down
+    down = null
+    if (e.pointerType === 'mouse' || !start || menuOpen) return
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) return // a scroll, not a tap
+    if ((e.target as Element).closest('button, .menu')) return
+    app.reveal()
   }
 
   function onKey(e: KeyboardEvent) {
@@ -76,7 +79,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <section
       class="card"
-      onpointerdown={(e) => (lastPointer = e.pointerType)}
+      onpointerdown={onPointerDown}
       onpointerup={onPointerUp}
       ondblclick={() => lastPointer === 'mouse' && app.reveal()}
     >
@@ -112,7 +115,7 @@
           {/each}
         </div>
       {:else}
-        <p class="reveal-hint">{touch ? 'Double-tap to reveal' : 'Space to reveal'}</p>
+        <p class="reveal-hint">{touch ? 'Tap to reveal' : 'Space to reveal'}</p>
       {/if}
     </footer>
   {:else if s?.view === 'wait'}
@@ -247,7 +250,7 @@
     background: var(--bg);
   }
   .menu .danger {
-    color: var(--g-m-anim);
+    color: var(--danger);
   }
   .backdrop {
     position: fixed;

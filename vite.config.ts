@@ -59,8 +59,10 @@ export default defineConfig({
         start_url: '/karticky/',
         scope: '/karticky/',
         display: 'standalone',
-        theme_color: '#2f5d8a',
-        background_color: '#f4f5f7',
+        // Chrome on Android colours an installed app's navigation bar from the manifest, which has no
+        // dark variant; dark values avoid a white bar under the dark theme. index.html sets the page's own colour.
+        theme_color: '#14171b',
+        background_color: '#14171b',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },

@@ -1,4 +1,7 @@
-/* Colour tokens. Gender colours are checked for at least 4.5:1 contrast on both --surface and --bg. */
+/* Colour tokens. Gender colours are Czech Express's own (from the publisher's Čeština expres 3 vocabulary
+   list): masculine animate #00aeef, masculine inanimate #24408f, feminine #d2232a, neuter #40ad49. Each theme
+   uses the book colour where it has at least 4.5:1 contrast on --surface and --bg, and otherwise the nearest
+   shade of the same hue that does (OKLCH lightness only). */
 :root {
   color-scheme: light dark;
   --bg: #f4f5f7;
@@ -9,11 +12,12 @@
   --accent: #2f5d8a;
   --accent-text: #ffffff;
   --warn: #9a3412;
+  --danger: #c0262d;
   --warn-bg: #fdecdf;
-  --g-m-anim: #c0262d;
-  --g-m-inanim: #b04f00;
-  --g-f: #1f5fbf;
-  --g-n: #1e7b34;
+  --g-m-anim: #0177a5; /* book #00aeef, darkened */
+  --g-m-inanim: #24408f;
+  --g-f: #d2232a;
+  --g-n: #04811f; /* book #40ad49, darkened */
   --radius: 14px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.45;
@@ -30,11 +34,12 @@
     --accent: #8ab4e8;
     --accent-text: #10161d;
     --warn: #fdba8c;
+    --danger: #ff7b72;
     --warn-bg: #3a2416;
-    --g-m-anim: #ff7b72;
-    --g-m-inanim: #f0a050;
-    --g-f: #79b0ff;
-    --g-n: #6fcf86;
+    --g-m-anim: #00aeef;
+    --g-m-inanim: #6588de; /* book #24408f, lightened */
+    --g-f: #f84d4a; /* book #d2232a, lightened */
+    --g-n: #40ad49;
   }
 }
 
