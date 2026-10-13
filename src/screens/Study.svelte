@@ -1,6 +1,7 @@
 <script lang="ts">
   import CardFace from '../components/CardFace.svelte'
   import { app } from '../lib/app.svelte'
+  import { LEARN_MORE_COUNT } from '../lib/config'
   import type { Grade } from '../lib/types'
 
   const GRADES: { r: Grade; label: string }[] = [
@@ -127,7 +128,7 @@
     <div class="center">
       <p class="big">Done for today</p>
       {#if app.status.canLearnMore}
-        <button class="btn primary" onclick={() => app.learnMore()}>Learn 5 more</button>
+        <button class="btn primary" onclick={() => app.learnMore()}>Learn {LEARN_MORE_COUNT} more</button>
       {/if}
       <button class="btn" onclick={() => app.go('home')}>Home</button>
     </div>

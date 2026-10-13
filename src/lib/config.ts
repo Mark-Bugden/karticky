@@ -17,7 +17,7 @@ export const RELEARNING_STEPS = ['10m'] as const
 export const NEW_PER_DAY_DEFAULT = 10
 export const NEW_PER_DAY_MIN = 1
 export const NEW_PER_DAY_MAX = 50
-export const LEARN_MORE_COUNT = 5
+export const LEARN_MORE_COUNT = 10
 /** If only learning cards remain and the next is due within this many minutes, show it now. */
 export const LEARN_AHEAD_MINUTES = 20
 

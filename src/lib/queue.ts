@@ -90,30 +90,65 @@ export function dueCards(w: World): string[] {
 /** Rules 4–6: never-reviewed cards that may be introduced now, in introduction order. */
 export function eligibleNewCards(w: World): string[] {
   const today = studyDay(w.now)
-  const out: string[] = []
-  let gateOpen = true
+  const misc: string[] = []
+  const chapters: { id: string; cards: string[] }[] = []
   for (const ch of w.set.chapters) {
-    const misc = ch.id === MISC_ID
-    // An unticked chapter gives no new cards and holds no later chapter back.
+    // Rule 5: an unticked chapter gives no new cards.
     if (!isIncluded(w, ch.id)) continue
-    if (!misc && !gateOpen) break
-    let complete = true
+    const cards: string[] = []
     for (const wordId of ch.wordIds) {
       for (const dir of DIRECTIONS) {
         const id = cardId(wordId, dir)
-        if (isHidden(w, id) || cardState(w.derived, id).introduced) continue
-        complete = false
-        if (isBuried(w, id, today)) continue
+        if (isHidden(w, id) || cardState(w.derived, id).introduced || isBuried(w, id, today)) continue
         if (dir === 'en-cz') {
           const sib = cardId(wordId, 'cz-en')
           const introduced = cardState(w.derived, sib).introduced
           if (!isHidden(w, sib) && !(introduced && introduced < today)) continue
         }
-        out.push(id)
+        cards.push(id)
       }
     }
-    // Rule 5: a chapter opens once every lower-order ticked chapter is fully introduced. Misc never gates.
-    if (!misc && !complete) gateOpen = false
+    if (ch.id === MISC_ID) misc.push(...cards)
+    else if (cards.length > 0) chapters.push({ id: ch.id, cards })
+  }
+  return [...misc, ...mixChapters(chapters, introducedTodayByChapter(w, today))]
+}
+
+/** Cards introduced today in each ticked chapter other than misc, on any device known here. */
+function introducedTodayByChapter(w: World, today: string): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const [id, c] of w.derived.cards) {
+    if (c.introduced !== today) continue
+    const chapterId = w.set.words.get(parseCardId(id).wordId)?.chapterId
+    if (chapterId === undefined || chapterId === MISC_ID || !isIncluded(w, chapterId)) continue
+    counts.set(chapterId, (counts.get(chapterId) ?? 0) + 1)
+  }
+  return counts
+}
+
+/**
+ * Rule 6: about half of the day's new cards come from the lowest ticked chapter that has any, and the
+ * rest from the other ticked chapters in turn (the one with fewest introduced today next, then the
+ * lower one). Today's earlier introductions count, so the mix holds however often the queue is rebuilt.
+ */
+function mixChapters(chapters: { id: string; cards: string[] }[], today: Map<string, number>): string[] {
+  const count = new Map(today)
+  const countOf = (i: number) => count.get(chapters[i].id) ?? 0
+  let total = [...today.values()].reduce((a, b) => a + b, 0)
+  const next = chapters.map(() => 0)
+  const live = chapters.map((_, i) => i) // chapters with cards left, lowest first
+  const out: string[] = []
+  while (live.length > 0) {
+    const lowest = live[0]
+    let pick = lowest
+    if (live.length > 1 && countOf(lowest) > total - countOf(lowest)) {
+      pick = live[1]
+      for (const i of live) if (i !== lowest && countOf(i) < countOf(pick)) pick = i
+    }
+    out.push(chapters[pick].cards[next[pick]++])
+    count.set(chapters[pick].id, countOf(pick) + 1)
+    total++
+    if (next[pick] === chapters[pick].cards.length) live.splice(live.indexOf(pick), 1)
   }
   return out
 }
@@ -148,7 +183,7 @@ export interface DayStatus {
   nextLearning: Date | null
   /** Rule 10. */
   done: boolean
-  /** "Learn 5 more" is offered only when eligible new cards remain. */
+  /** "Learn more" is offered only when eligible new cards remain. */
   canLearnMore: boolean
 }
 

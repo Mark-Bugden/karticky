@@ -59,9 +59,10 @@ any of them could read the token.
 - **Moving on**: once every ticked chapter is fully introduced and 80% of its cards are learned
   (remembered after a gap, so the scheduler is confident for 7+ days), Home suggests the next
   chapter, with one tap to add it.
-- New cards: 10 a day by default (Settings), from ticked chapters in order: a chapter starts once the
-  ticked ones before it are fully introduced. Czech→English cards come first; their English→Czech
-  cards arrive from the next day.
+- New cards: 10 a day by default (Settings), mixed over the ticked chapters: about half from the
+  lowest ticked chapter that still has new cards, the rest from the others in turn. Within a chapter
+  words keep the book's order; Czech→English cards come first and their English→Czech cards arrive
+  from the next day. Once you're done for the day, **Learn 10 more** adds ten more new cards.
 - Sync runs on its own (on opening, every 5 minutes, when the connection returns, and on leaving).
   "Not synced" means there are reviews on this device that haven't reached GitHub yet; studying
   always works offline.
@@ -132,8 +133,9 @@ summary.
 - **New cards per day**: the stepper records one `setting` event after a short pause or on leaving
   Settings, not one per tap.
 - **Chapter files over 500 KB** are reported in the summary and Settings but still load.
-- **Misc does not gate chapters**: chapter gating looks only at ticked chapters with a lower `order`.
-  Misc is always studied and has no tick box.
+- **New-card mix**: misc first, then ticked chapters mixed so that the lowest one with new cards
+  left gets about half. Cards introduced earlier today (on any device known here) count towards the
+  mix, so it holds however often the queue is rebuilt. Misc is always studied and has no tick box.
 - **Ticks are `setting` events** with key `include:<chapter id>` and value 1 or 0, so a device still
   on an older version keeps them in its database instead of dropping them.
 - **Both directions due, neither seen today**: the one due earlier is shown; on a tie,

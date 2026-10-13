@@ -2,6 +2,7 @@
   import SyncLine from '../components/SyncLine.svelte'
   import { app } from '../lib/app.svelte'
   import { MISC_ID } from '../lib/chapters'
+  import { LEARN_MORE_COUNT } from '../lib/config'
   import { chapterLabel, learnedPercent } from '../lib/format'
 
   const st = $derived(app.status)
@@ -51,7 +52,7 @@
         {#if st.done}
           <p class="done">Done for today</p>
           {#if st.canLearnMore}
-            <button class="btn" onclick={() => app.learnMore()}>Learn 5 more</button>
+            <button class="btn" onclick={() => app.learnMore()}>Learn {LEARN_MORE_COUNT} more</button>
           {/if}
         {:else}
           <button class="btn primary study" onclick={() => app.startStudy()}>Study</button>

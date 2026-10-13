@@ -235,13 +235,13 @@ describe('new cards', () => {
     ])
   })
 
-  it('allows 10 a day by default, and exactly 5 more per "Learn 5 more"', () => {
+  it('allows 10 a day by default, and exactly 10 more per "Learn 10 more"', () => {
     const sim = new Sim(chapterSet([chapterFile('c1', 1, 30)]))
     expect(sim.studyAll()).toHaveLength(10)
     expect(dayStatus(sim.world())).toMatchObject({ done: true, canLearnMore: true, newAvailable: 0 })
     sim.add('learnMore', { day: studyDay(sim.now) })
-    expect(dayStatus(sim.world()).newAvailable).toBe(5)
-    expect(sim.studyAll()).toHaveLength(5)
+    expect(dayStatus(sim.world()).newAvailable).toBe(10)
+    expect(sim.studyAll()).toHaveLength(10)
     expect(newAllowance(sim.world())).toBe(0)
   })
 
@@ -260,32 +260,44 @@ describe('new cards', () => {
     expect(newAllowance(sim.world())).toBe(8)
   })
 
-  it('takes misc first, then chapters by order with ties by id, then file order', () => {
+  it('takes misc first, then mixes chapters, lowest first, with ties by id and words in file order', () => {
     const set = chapterSet([chapterFile('b', 2, 1), chapterFile('a', 2, 1), chapterFile('first', 1, 1), chapterFile('misc', 0, 2)])
     const w = new Sim(set).world()
-    expect(eligibleNewCards(w)).toEqual(['misc-001:cz-en', 'misc-002:cz-en', 'first-001:cz-en'])
+    expect(eligibleNewCards(w)).toEqual(['misc-001:cz-en', 'misc-002:cz-en', 'first-001:cz-en', 'a-001:cz-en', 'b-001:cz-en'])
   })
 
-  it('opens a chapter only after every lower chapter is introduced in both directions', () => {
+  it('alternates two chapters, keeping each chapter in book order', () => {
     const sim = new Sim(chapterSet([chapterFile('c1', 1, 3), chapterFile('c2', 2, 3)]))
-    expect(sim.studyAll()).toEqual(['c1-001:cz-en', 'c1-002:cz-en', 'c1-003:cz-en'])
+    expect(sim.studyAll()).toEqual(['c1-001:cz-en', 'c2-001:cz-en', 'c1-002:cz-en', 'c2-002:cz-en', 'c1-003:cz-en', 'c2-003:cz-en'])
     sim.days(1)
-    // The en-cz cards finish chapter 1, then chapter 2 opens on the same day.
-    expect(sim.studyAll().filter((c) => c.endsWith(':en-cz') || c.startsWith('c2'))).toEqual([
+    expect(sim.studyAll().filter((c) => c.endsWith(':en-cz'))).toEqual([
       'c1-001:en-cz',
+      'c2-001:en-cz',
       'c1-002:en-cz',
+      'c2-002:en-cz',
       'c1-003:en-cz',
-      'c2-001:cz-en',
-      'c2-002:cz-en',
-      'c2-003:cz-en',
+      'c2-003:en-cz',
     ])
   })
 
-  it('lets the English→Czech card in when its Czech→English sibling is suspended, and still opens later chapters', () => {
+  it('takes about half of the day from the lowest chapter and the rest from the others in turn', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 20), chapterFile('c2', 2, 20), chapterFile('c3', 3, 20)]))
+    const shown = sim.studyAll()
+    expect(shown.map((c) => c.slice(0, 2))).toEqual(['c1', 'c2', 'c1', 'c3', 'c1', 'c2', 'c1', 'c3', 'c1', 'c2'])
+  })
+
+  it('keeps the mix across sessions and devices on the same day', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 20), chapterFile('c2', 2, 20)]))
+    sim.review('c1-001:cz-en', 3, 'android-bbbbbb')
+    sim.review('c1-002:cz-en', 3, 'android-bbbbbb')
+    // Two from c1 already today, so c2 catches up before c1 continues.
+    expect(eligibleNewCards(sim.world()).slice(0, 4)).toEqual(['c2-001:cz-en', 'c2-002:cz-en', 'c1-003:cz-en', 'c2-003:cz-en'])
+  })
+
+  it('lets the English→Czech card in when its Czech→English sibling is suspended', () => {
     const sim = new Sim(chapterSet([chapterFile('c1', 1, 1), chapterFile('c2', 2, 1)]))
     sim.add('suspend', { card: 'c1-001:cz-en' })
-    expect(eligibleNewCards(sim.world())).toEqual(['c1-001:en-cz'])
-    // Introducing the only remaining card of chapter 1 opens chapter 2 the same day.
+    expect(eligibleNewCards(sim.world())).toEqual(['c1-001:en-cz', 'c2-001:cz-en'])
     expect(sim.studyAll()).toEqual(['c1-001:en-cz', 'c2-001:cz-en'])
   })
 
@@ -503,11 +515,11 @@ describe('chapter ticking', () => {
     expect(eligibleNewCards(sim.world())).toEqual(['misc-001:cz-en', 'c1-001:cz-en', 'c1-002:cz-en', 'c1-003:cz-en'])
   })
 
-  it('gates ticked chapters in order, while unticked chapters hold nothing back', () => {
+  it('mixes only ticked chapters, the lowest ticked one taking the lead', () => {
     const sim = new Sim(threeChapters(), undefined, ['c2', 'c3'])
-    expect(eligibleNewCards(sim.world())).toEqual(['c2-001:cz-en', 'c2-002:cz-en', 'c2-003:cz-en'])
+    expect(eligibleNewCards(sim.world())).toEqual(['c2-001:cz-en', 'c3-001:cz-en', 'c2-002:cz-en', 'c3-002:cz-en', 'c2-003:cz-en', 'c3-003:cz-en'])
     sim.include('c1')
-    expect(eligibleNewCards(sim.world()).every((id) => id.startsWith('c1-'))).toBe(true)
+    expect(eligibleNewCards(sim.world()).slice(0, 4)).toEqual(['c1-001:cz-en', 'c2-001:cz-en', 'c1-002:cz-en', 'c3-001:cz-en'])
   })
 
   it('pauses an unticked chapter entirely and resumes it with its history when ticked again', () => {
