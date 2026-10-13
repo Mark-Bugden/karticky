@@ -8,6 +8,7 @@
   const st = $derived(app.status)
   /** Ticked chapters, plus misc once it has cards. */
   const shown = $derived(app.progress.filter((p) => p.included && (p.chapter.id !== MISC_ID || p.total > 0)))
+  const canPractise = $derived(app.progress.some((p) => p.introduced > 0))
 </script>
 
 <main class="page">
@@ -60,6 +61,10 @@
       </section>
 
       <p class="streak">Streak: {app.streakDays} {app.streakDays === 1 ? 'day' : 'days'}</p>
+    {/if}
+
+    {#if canPractise}
+      <button class="btn practise" onclick={() => app.go('practice')}>Practise</button>
     {/if}
 
     {#if app.suggestion}
@@ -154,6 +159,10 @@
   .streak {
     margin: 20px 0 0;
     font-weight: 550;
+  }
+  .practise {
+    width: 100%;
+    margin-top: 16px;
   }
   .chapters {
     list-style: none;

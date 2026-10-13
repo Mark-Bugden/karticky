@@ -13,10 +13,14 @@ import {
   chapterProgress,
   dayStatus,
   isFlagged,
+  isHidden,
   pickNext,
+  practiceAfterGrade,
+  startPractice,
   streak,
   suggestedChapter,
   type Plan,
+  type PracticeState,
   type World,
 } from './queue'
 import { emptyDerived, includeKey, type Derived } from './replay'
@@ -24,7 +28,7 @@ import { dayEnd, formatLocalDate, studyDay } from './studyDay'
 import type { ChapterSet, Direction, Grade, Word } from './types'
 import { SyncQueue } from './sync'
 
-export type Screen = 'loading' | 'setup' | 'home' | 'study' | 'settings' | 'chapters'
+export type Screen = 'loading' | 'setup' | 'home' | 'study' | 'settings' | 'chapters' | 'practice'
 
 /** The word content shown on a card, frozen when the card appears. */
 export type WordView = Partial<Word> & { id: string; cz?: string; en?: string }
@@ -37,6 +41,8 @@ export interface StudyState {
   word: WordView | null
   revealed: boolean
   waitUntil: Date | null
+  /** Set when practising chosen chapters instead of following today's plan. */
+  practice: PracticeState | null
 }
 
 interface SyncStatus {
@@ -77,7 +83,8 @@ class AppState {
 
   sync = $state<SyncStatus>({ running: false, lastSyncAt: null, problem: null, unpushed: 0, online: true, retryAt: null })
   study = $state.raw<StudyState | null>(null)
-  lastGrade = $state.raw<{ eventId: string; card: string } | null>(null)
+  /** The last grade, for Undo, with the practice session as it was before that grade. */
+  lastGrade = $state.raw<{ eventId: string; card: string; practice: PracticeState | null } | null>(null)
   /** newPerDay while the stepper is being tapped, before it is recorded. */
   pendingNewPerDay = $state<number | null>(null)
 
@@ -312,7 +319,17 @@ class AppState {
   startStudy(): void {
     this.tick()
     this.lastGrade = null
-    this.study = { plan: buildPlan(this.world), view: 'card', card: null, dir: null, word: null, revealed: false, waitUntil: null }
+    this.study = { plan: buildPlan(this.world), view: 'card', card: null, dir: null, word: null, revealed: false, waitUntil: null, practice: null }
+    this.go('study')
+    this.advance()
+  }
+
+  /** Practice: the started cards of the chosen chapters in random order, graded as normal reviews. */
+  startPractice(chapterIds: string[]): void {
+    this.tick()
+    this.lastGrade = null
+    const practice = startPractice(this.world, chapterIds)
+    this.study = { plan: { slots: [], pos: 0 }, view: 'card', card: null, dir: null, word: null, revealed: false, waitUntil: null, practice }
     this.go('study')
     this.advance()
   }
@@ -333,6 +350,12 @@ class AppState {
     if (!s) return
     this.tick()
     clearTimeout(this.timers.wait)
+    if (s.practice) {
+      const card = s.practice.queue[0]
+      if (card) this.show(card, false)
+      else this.study = { ...s, view: 'done', card: null, dir: null, word: null, revealed: false, waitUntil: null }
+      return
+    }
     const next = pickNext(this.world, s.plan)
     if (next.kind === 'card') {
       this.show(next.card, false)
@@ -347,7 +370,7 @@ class AppState {
   /** After a sync or at 4 am: a fresh queue for today, keeping the current card on screen. */
   private rebuildStudyPlan(): void {
     const s = this.study
-    if (!s) return
+    if (!s || s.practice) return
     this.study = { ...s, plan: buildPlan(this.world) }
     if (s.view !== 'card') this.advance()
   }
@@ -371,7 +394,8 @@ class AppState {
     try {
       const card = s.card
       const event = await this.engine.record('review', { card, r })
-      this.lastGrade = { eventId: event.id, card }
+      this.lastGrade = { eventId: event.id, card, practice: s.practice }
+      if (s.practice) this.study = { ...s, practice: practiceAfterGrade(s.practice, card, r) }
       this.refresh()
       await this.afterChange()
       this.advance()
@@ -388,6 +412,7 @@ class AppState {
     try {
       await this.engine.record('undo', { target: g.eventId })
       this.lastGrade = null
+      if (g.practice && this.study) this.study = { ...this.study, practice: g.practice }
       this.refresh()
       this.show(g.card, true)
       await this.afterChange()
@@ -401,6 +426,7 @@ class AppState {
     if (!card) return
     await this.engine.record('suspend', { card })
     this.refresh()
+    this.dropHiddenFromPractice()
     await this.afterChange()
     this.advance()
   }
@@ -410,8 +436,16 @@ class AppState {
     if (!card) return
     await this.engine.record('delete', { word: parseCardId(card).wordId })
     this.refresh()
+    this.dropHiddenFromPractice()
     await this.afterChange()
     this.advance()
+  }
+
+  /** After a suspend or delete in practice, the hidden cards leave the session. */
+  private dropHiddenFromPractice(): void {
+    const s = this.study
+    if (!s?.practice) return
+    this.study = { ...s, practice: { ...s.practice, queue: s.practice.queue.filter((id) => !isHidden(this.world, id)) } }
   }
 
   async toggleFlagCurrent(): Promise<void> {
@@ -429,7 +463,7 @@ class AppState {
     await this.engine.record('learnMore', { day: studyDay(new Date()) })
     this.refresh()
     await this.afterChange()
-    if (this.study) {
+    if (this.study && !this.study.practice) {
       this.study = { ...this.study, plan: buildPlan(this.world) }
       this.advance()
     }

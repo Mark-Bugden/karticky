@@ -63,6 +63,11 @@ any of them could read the token.
   lowest ticked chapter that still has new cards, the rest from the others in turn. Within a chapter
   words keep the book's order; Czech→English cards come first and their English→Czech cards arrive
   from the next day. Once you're done for the day, **Learn 10 more** adds ten more new cards.
+- **Practise** (Home): go over the words you've already started in the chapters you pick, in random
+  order, whenever you like. Missed cards come back a few cards later until you get them; the end shows
+  how many you got right first time. Answers count as ordinary reviews: the scheduler gives little
+  credit for a word you saw recently, so extra practice never inflates the schedule, while a miss
+  counts in full.
 - Sync runs on its own (on opening, every 5 minutes, when the connection returns, and on leaving).
   "Not synced" means there are reviews on this device that haven't reached GitHub yet; studying
   always works offline.
@@ -104,7 +109,7 @@ GitHub Pages.
 | `src/lib/github.ts`, `src/lib/sync.ts` | GitHub Git Data API client and the sync protocol |
 | `src/lib/engine.ts` | Data core without UI: load, record, replay, sync |
 | `src/lib/app.svelte.ts` | App state for the screens: timers, sync triggers, study session |
-| `src/screens/`, `src/components/` | Setup, Home, Study, Settings, Chapters |
+| `src/screens/`, `src/components/` | Setup, Home, Study (also runs practice), Settings, Chapters, Practise |
 | `src/lib/testing/fakeGitHub.ts` | In-memory GitHub used by the sync tests |
 
 Card state is never stored as truth: it is rebuilt by replaying the append-only event log. Each device
@@ -140,7 +145,7 @@ summary.
   on an older version keeps them in its database instead of dropping them.
 - **Both directions due, neither seen today**: the one due earlier is shown; on a tie,
   Czech→English.
-- **Navigation**: Study has a ✕ to return Home and Settings and Chapters have a back arrow; the Android back
+- **Navigation**: Study has a ✕ to return Home and Settings, Chapters and Practise have a back arrow; the Android back
   gesture and Esc also return Home.
 - **Several windows** of the app on one device (for example a browser tab and the installed app)
   share one database: syncs are serialised with a Web Lock, and a window reloads its state when it

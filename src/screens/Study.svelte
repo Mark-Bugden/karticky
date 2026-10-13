@@ -67,7 +67,9 @@
 <div class="study">
   <header>
     <button class="icon-btn" aria-label="Back to Home" onclick={() => app.go('home')}>✕</button>
-    <span class="count">{app.status.due} due · {app.status.newAvailable} new</span>
+    <span class="count">
+      {#if s?.practice}Practice · {s.practice.queue.length} left{:else}{app.status.due} due · {app.status.newAvailable} new{/if}
+    </span>
     <span class="right">
       {#if app.notSynced}<span class="badge">Not synced</span>{/if}
       {#if app.lastGrade}
@@ -122,6 +124,14 @@
   {:else if s?.view === 'wait'}
     <div class="center">
       <p class="big">Next card in {app.waitMinutes} min</p>
+      <button class="btn" onclick={() => app.go('home')}>Home</button>
+    </div>
+  {:else if s?.view === 'done' && s.practice}
+    {@const p = s.practice}
+    <div class="center">
+      <p class="big">Practice done</p>
+      <p class="muted score">{p.firstTry} of {p.total} right first time</p>
+      <button class="btn primary" onclick={() => app.startPractice(p.chapterIds)}>Practise again</button>
       <button class="btn" onclick={() => app.go('home')}>Home</button>
     </div>
   {:else if s?.view === 'done'}
@@ -300,6 +310,9 @@
     margin: 0 0 8px;
     font-size: 1.5rem;
     font-weight: 600;
+  }
+  .score {
+    margin: -12px 0 8px;
   }
   .modal-backdrop {
     position: fixed;

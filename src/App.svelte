@@ -3,6 +3,7 @@
   import { app } from './lib/app.svelte'
   import Chapters from './screens/Chapters.svelte'
   import Home from './screens/Home.svelte'
+  import Practice from './screens/Practice.svelte'
   import Settings from './screens/Settings.svelte'
   import Setup from './screens/Setup.svelte'
   import Study from './screens/Study.svelte'
@@ -27,4 +28,6 @@
   <Settings />
 {:else if app.screen === 'chapters'}
   <Chapters />
+{:else if app.screen === 'practice'}
+  <Practice />
 {/if}

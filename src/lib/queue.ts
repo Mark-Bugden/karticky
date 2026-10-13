@@ -1,12 +1,19 @@
 // What to study today. Pure functions over the chapter set, the replayed state and a clock,
 // following the queue rules in the design document (numbered comments refer to them).
 
-import { LEARN_AHEAD_MINUTES, LEARN_MORE_COUNT, LEARNED_STABILITY_DAYS, MOVE_ON_SHARE } from './config'
+import {
+  LEARN_AHEAD_MINUTES,
+  LEARN_MORE_COUNT,
+  LEARNED_STABILITY_DAYS,
+  MOVE_ON_SHARE,
+  PRACTICE_AGAIN_GAP,
+  PRACTICE_SIBLING_GAP,
+} from './config'
 import { MISC_ID } from './chapters'
 import { cardId, DIRECTIONS, parseCardId, siblingId } from './events'
 import { newCardState, State, type CardState, type Derived } from './replay'
 import { addDays, dayEnd, studyDay } from './studyDay'
-import type { Chapter, ChapterSet } from './types'
+import type { Chapter, ChapterSet, Grade } from './types'
 
 export interface World {
   now: Date
@@ -278,6 +285,62 @@ export function pickNext(w: World, plan: Plan): Next {
     if (next.due < dayEnd(studyDay(w.now))) return { kind: 'wait', until: next.due }
   }
   return { kind: 'done' }
+}
+
+// ---- Practice ----
+// Practice goes over cards already started, whenever the user likes. Grades are ordinary reviews:
+// FSRS gives little credit for a card seen recently, so extra practice cannot inflate the schedule.
+
+export interface PracticeState {
+  chapterIds: string[]
+  /** Cards still to get right this session, the next one first. */
+  queue: string[]
+  total: number
+  /** Cards answered Hard, Good or Easy the first time they were shown. */
+  firstTry: number
+  /** Cards shown at least once. */
+  seen: Set<string>
+}
+
+/** Every started, non-hidden card in the chosen chapters, ticked or not. */
+export function practiceCards(w: World, chapterIds: Iterable<string>): string[] {
+  const chosen = new Set(chapterIds)
+  const out: string[] = []
+  for (const ch of w.set.chapters) {
+    if (!chosen.has(ch.id)) continue
+    for (const wordId of ch.wordIds) {
+      for (const dir of DIRECTIONS) {
+        const id = cardId(wordId, dir)
+        if (!isHidden(w, id) && cardState(w.derived, id).introduced) out.push(id)
+      }
+    }
+  }
+  return out
+}
+
+/** Shuffled, keeping a word's two cards at least PRACTICE_SIBLING_GAP apart where possible. */
+export function practiceOrder(cards: string[], random: () => number = Math.random): string[] {
+  const pool = shuffle([...cards], random)
+  const out: string[] = []
+  while (pool.length > 0) {
+    const blocked = new Set(out.slice(-PRACTICE_SIBLING_GAP).map(siblingId))
+    const i = pool.findIndex((id) => !blocked.has(id))
+    out.push(...pool.splice(Math.max(i, 0), 1))
+  }
+  return out
+}
+
+export function startPractice(w: World, chapterIds: string[], random?: () => number): PracticeState {
+  const queue = practiceOrder(practiceCards(w, chapterIds), random)
+  return { chapterIds, queue, total: queue.length, firstTry: 0, seen: new Set() }
+}
+
+/** Again sends the card back a few places; any other grade retires it from the session. */
+export function practiceAfterGrade(p: PracticeState, card: string, r: Grade): PracticeState {
+  const queue = p.queue.filter((id) => id !== card)
+  if (r === 1) queue.splice(Math.min(PRACTICE_AGAIN_GAP, queue.length), 0, card)
+  const firstTry = p.firstTry + (r > 1 && !p.seen.has(card) ? 1 : 0)
+  return { ...p, queue, firstTry, seen: new Set(p.seen).add(card) }
 }
 
 // ---- Streak ----

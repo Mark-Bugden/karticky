@@ -14,6 +14,10 @@ import {
   isPaused,
   newAllowance,
   pickNext,
+  practiceAfterGrade,
+  practiceCards,
+  practiceOrder,
+  startPractice,
   streak,
   suggestedChapter,
   type ChapterProgress,
@@ -573,5 +577,65 @@ describe('chapter ticking', () => {
       sim.studyAll()
     }
     expect(suggestion()).toBe('c2')
+  })
+})
+
+// ---- Practice ----
+
+describe('practice', () => {
+  it('takes only started, non-hidden cards from the chosen chapters, paused ones included', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 3), chapterFile('c2', 2, 3)]), undefined, ['c1'])
+    sim.studyAll() // c1 Czech→English cards started
+    sim.add('suspend', { card: 'c1-002:cz-en' })
+    sim.include('c1', false)
+    const w = sim.world()
+    expect(practiceCards(w, ['c1', 'c2'])).toEqual(['c1-001:cz-en', 'c1-003:cz-en'])
+    expect(practiceCards(w, ['c2'])).toEqual([])
+  })
+
+  it('shuffles, keeping the two cards of a word apart where it can', () => {
+    const cards = words('c', 12).flatMap((w) => [`${w.id}:cz-en`, `${w.id}:en-cz`])
+    for (const seed of [1, 2, 3]) {
+      let x = seed
+      const random = () => ((x = (x * 16807) % 2147483647) - 1) / 2147483646
+      const order = practiceOrder(cards, random)
+      expect([...order].sort()).toEqual([...cards].sort())
+      order.forEach((id, i) => {
+        const word = id.split(':')[0]
+        expect(order.slice(Math.max(0, i - 3), i).some((prev) => prev.startsWith(`${word}:`))).toBe(false)
+      })
+    }
+  })
+
+  it('sends a missed card back five places, retires the rest, and counts first-time answers', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 8)]))
+    sim.studyAll()
+    let p = startPractice(sim.world(), ['c1'], () => 0)
+    expect(p.total).toBe(8)
+    const [a, b] = p.queue
+    p = practiceAfterGrade(p, a, 1)
+    expect(p.queue.indexOf(a)).toBe(5)
+    expect(p.firstTry).toBe(0)
+    p = practiceAfterGrade(p, b, 3)
+    expect(p.queue).not.toContain(b)
+    expect(p.firstTry).toBe(1)
+    p = practiceAfterGrade(p, a, 3) // right on the second try: retired, but not first time
+    expect(p.queue).not.toContain(a)
+    expect(p.firstTry).toBe(1)
+    expect(p.queue).toHaveLength(6)
+    // Near the end, a missed card goes to the back.
+    p = { ...p, queue: p.queue.slice(0, 2) }
+    expect(practiceAfterGrade(p, p.queue[0], 1).queue).toEqual([p.queue[1], p.queue[0]])
+  })
+
+  it('records practice answers as ordinary reviews, worth little on a card just seen', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 1)]))
+    sim.studyAll()
+    const before = sim.world().derived.cards.get('c1-001:cz-en')!.fsrs.stability
+    sim.minutes(120)
+    sim.review('c1-001:cz-en', 3) // practice two hours later
+    const after = sim.world().derived.cards.get('c1-001:cz-en')!.fsrs.stability
+    expect(after).toBeGreaterThanOrEqual(before)
+    expect(after).toBeLessThan(before * 1.1)
   })
 })

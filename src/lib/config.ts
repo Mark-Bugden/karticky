@@ -20,6 +20,10 @@ export const NEW_PER_DAY_MAX = 50
 export const LEARN_MORE_COUNT = 10
 /** If only learning cards remain and the next is due within this many minutes, show it now. */
 export const LEARN_AHEAD_MINUTES = 20
+/** In practice, a card answered Again comes back after this many other cards. */
+export const PRACTICE_AGAIN_GAP = 5
+/** In practice, a word's two cards are kept at least this many cards apart where possible. */
+export const PRACTICE_SIBLING_GAP = 3
 
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000
 export const SYNC_RETRY_DELAYS_MS = [2000, 4000, 8000]
