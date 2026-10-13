@@ -1,0 +1,70 @@
+/* Colour tokens. Gender colours are checked for at least 4.5:1 contrast on both --surface and --bg. */
+:root {
+  color-scheme: light dark;
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #5b6470;
+  --border: #d9dde3;
+  --accent: #2f5d8a;
+  --accent-text: #ffffff;
+  --warn: #9a3412;
+  --warn-bg: #fdecdf;
+  --g-m-anim: #c0262d;
+  --g-m-inanim: #b04f00;
+  --g-f: #1f5fbf;
+  --g-n: #1e7b34;
+  --radius: 14px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b;
+    --surface: #1f2329;
+    --text: #e8eaed;
+    --muted: #a3abb5;
+    --border: #353b44;
+    --accent: #8ab4e8;
+    --accent-text: #10161d;
+    --warn: #fdba8c;
+    --warn-bg: #3a2416;
+    --g-m-anim: #ff7b72;
+    --g-m-inanim: #f0a050;
+    --g-f: #79b0ff;
+    --g-n: #6fcf86;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  touch-action: manipulation;
+}
+
+h1,
+h2 {
+  line-height: 1.2;
+}

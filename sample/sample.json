@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "chapter": { "id": "sample", "order": 1, "title": "Sample" },
+  "words": [
+    { "id": "sample-001", "cz": "pes", "en": "dog", "gender": "m-anim",
+      "example": "Náš pes je velký.", "exampleEn": "Our dog is big.",
+      "note": "Genitive: psa (the e drops)." },
+    { "id": "sample-002", "cz": "stůl", "en": "table", "gender": "m-inanim", "hint": "furniture",
+      "example": "Kniha je na stole.", "exampleEn": "The book is on the table." },
+    { "id": "sample-003", "cz": "kniha", "en": "book", "gender": "f",
+      "example": "Čtu zajímavou knihu.", "exampleEn": "I am reading an interesting book." },
+    { "id": "sample-004", "cz": "město", "en": "town, city", "gender": "n",
+      "example": "Bydlím ve městě.", "exampleEn": "I live in the city." },
+    { "id": "sample-005", "cz": "říkat", "en": "to say, to tell", "aspect": "impf", "partner": "říct",
+      "example": "Co říkáš?", "exampleEn": "What are you saying?" },
+    { "id": "sample-006", "cz": "koupit", "en": "to buy", "aspect": "pf", "partner": "kupovat",
+      "example": "Zítra koupím mléko.", "exampleEn": "I will buy milk tomorrow." },
+    { "id": "sample-007", "cz": "dobrý den", "en": "hello, good day",
+      "example": "Dobrý den, jak se máte?", "exampleEn": "Hello, how are you?" },
+    { "id": "sample-008", "cz": "děkuji", "en": "thank you",
+      "example": "Děkuji za pomoc.", "exampleEn": "Thank you for the help." }
+  ]
+}

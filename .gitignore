@@ -1,0 +1,16 @@
+node_modules
+dist
+dev-dist
+coverage
+*.local
+*.log
+.env
+.env.*
+.DS_Store
+
+# Private notes (design document, personal details) stay out of this public repo
+docs/
+.claude/
+
+.vscode/*
+!.vscode/extensions.json
