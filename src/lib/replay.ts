@@ -49,6 +49,8 @@ export interface Derived {
   cleared: Set<string>
   /** The last event applied, to tell whether a new event can be applied on top. */
   last: { t: string; id: string } | null
+  /** How many events have been replayed, including undone ones. */
+  count: number
 }
 
 export function emptyDerived(): Derived {
@@ -60,7 +62,13 @@ export function emptyDerived(): Derived {
     learnMore: new Map(),
     cleared: new Set(),
     last: null,
+    count: 0,
   }
+}
+
+/** Matches eventsFingerprint() in db.ts when this state reflects exactly the stored events. */
+export function fingerprintOf(d: Derived): string {
+  return `${d.count}:${d.last?.id ?? ''}`
 }
 
 export function newCardState(): CardState {
@@ -127,6 +135,7 @@ export function applyEvent(d: Derived, e: AppEvent): void {
       break // handled by replay(): the target review is skipped
   }
   d.last = { t: e.t, id: e.id }
+  d.count++
 }
 
 /** Full replay of every event. */
@@ -138,6 +147,7 @@ export function replay(events: AppEvent[]): Derived {
     if (e.type === 'review' && undone.has(e.id)) {
       d.historyWords.add(parseCardId(e.card!).wordId)
       d.last = { t: e.t, id: e.id }
+      d.count++
       continue
     }
     applyEvent(d, e)
@@ -165,11 +175,12 @@ export interface DerivedCache {
   learnMore: [string, number][]
   cleared: string[]
   last: Derived['last']
+  count: number
 }
 
-export function toCache(d: Derived, fingerprint: string): DerivedCache {
+export function toCache(d: Derived): DerivedCache {
   return {
-    fingerprint,
+    fingerprint: fingerprintOf(d),
     cards: [...d.cards].map(([id, c]) => [
       id,
       { ...c, fsrs: { ...c.fsrs, due: c.fsrs.due.toISOString(), last_review: c.fsrs.last_review?.toISOString() } },
@@ -180,6 +191,7 @@ export function toCache(d: Derived, fingerprint: string): DerivedCache {
     learnMore: [...d.learnMore],
     cleared: [...d.cleared],
     last: d.last,
+    count: d.count,
   }
 }
 
@@ -204,5 +216,6 @@ export function fromCache(c: DerivedCache): Derived {
     learnMore: new Map(c.learnMore),
     cleared: new Set(c.cleared),
     last: c.last,
+    count: c.count,
   }
 }

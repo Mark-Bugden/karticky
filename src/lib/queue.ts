@@ -36,11 +36,13 @@ export function isBuried(w: World, id: string, today = studyDay(w.now)): boolean
   return !reviewedOn(cardState(w.derived, id), today) && reviewedOn(cardState(w.derived, siblingId(id)), today)
 }
 
-/** A word is flagged if its latest flag still matches its current content. */
-export function isFlagged(w: World, wordId: string, lastSeenHash?: string): boolean {
+/**
+ * A word is flagged if its latest flag still matches its current content. A word in no current
+ * chapter file has no current content, so its flag has lapsed (this also keeps both devices' summaries identical).
+ */
+export function isFlagged(w: World, wordId: string): boolean {
   const flag = w.derived.words.get(wordId)?.flagHash
-  const current = w.set.words.get(wordId)?.hash ?? lastSeenHash
-  return !!flag && flag === current
+  return !!flag && flag === w.set.words.get(wordId)?.hash
 }
 
 function isDueNow(c: CardState, now: Date, today: string): boolean {

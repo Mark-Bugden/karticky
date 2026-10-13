@@ -177,8 +177,8 @@ describe('replay', () => {
     sim.studyAll(1)
     sim.add('suspend', { card: 'sample-004:en-cz' })
     const d = sim.world().derived
-    const json = JSON.parse(JSON.stringify(toCache(d, 'fp')))
-    expect(json.fingerprint).toBe('fp')
+    const json = JSON.parse(JSON.stringify(toCache(d)))
+    expect(json.fingerprint).toBe(`${sim.events.length}:${d.last?.id}`)
     expect(fromCache(json)).toEqual(d)
   })
 
