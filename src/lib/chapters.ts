@@ -2,7 +2,7 @@
 // skipped and reported; everything else loads.
 
 import { CHAPTER_FILE_MAX_BYTES } from './config'
-import type { Aspect, Chapter, ChapterSet, FileError, Gender, LoadedWord, Word } from './types'
+import type { Aspect, Chapter, ChapterSet, FileError, FormTable, Gender, LoadedWord, Word } from './types'
 
 export interface RawFile {
   path: string
@@ -15,14 +15,53 @@ const WORD_ID = /^[a-z0-9][a-z0-9-]*$/
 const GENDERS: readonly Gender[] = ['m-anim', 'm-inanim', 'f', 'n']
 const ASPECTS: readonly Aspect[] = ['impf', 'pf', 'biasp']
 const REQUIRED_TEXT = ['cz', 'en', 'example', 'exampleEn'] as const
-const OPTIONAL_TEXT = ['partner', 'hint', 'note'] as const
+const OPTIONAL_TEXT = ['partner', 'hint', 'label', 'note'] as const
+const MAX_TABLES = 6
+const MAX_TABLE_ROWS = 24
+const MAX_TABLE_COLS = 6
 
 /** The fields that make up a word's content hash, in hashing order. */
 export const CONTENT_FIELDS = ['cz', 'en', 'gender', 'aspect', 'partner', 'hint', 'example', 'exampleEn', 'note'] as const
+/** Fields added later. Each joins the hash only when present, so adding one leaves other words' hashes alone. */
+export const LATER_CONTENT_FIELDS = ['label', 'tables'] as const
 
-type Parsed = { ok: true; word: Word } | { ok: false; problem: string }
+/** A word with bad tables still loads, without them, and the problem is reported. */
+type Parsed = { ok: true; word: Word; problem?: string } | { ok: false; problem: string }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const isText = (v: unknown): v is string => typeof v === 'string'
+
+/** Checks a word's conjugation or declension tables; returns a problem if any is malformed. */
+function parseTables(raw: unknown): { tables: FormTable[] } | { problem: string } {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_TABLES) {
+    return { problem: `"tables" must be a list of 1 to ${MAX_TABLES} tables` }
+  }
+  const tables: FormTable[] = []
+  for (const [i, t] of raw.entries()) {
+    const bad = (why: string) => ({ problem: `Table ${i + 1} ${why}` })
+    if (!isObject(t)) return bad('is not an object')
+    if (t.title !== undefined && !isText(t.title)) return bad('has a "title" that is not text')
+    if (t.note !== undefined && !isText(t.note)) return bad('has a "note" that is not text')
+    const { cols, rows } = t
+    if (cols !== undefined && (!Array.isArray(cols) || cols.length < 2 || cols.length > MAX_TABLE_COLS || !cols.every(isText))) {
+      return bad(`needs "cols" to be 2 to ${MAX_TABLE_COLS} pieces of text`)
+    }
+    if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_TABLE_ROWS) return bad(`needs 1 to ${MAX_TABLE_ROWS} rows`)
+    const width = cols?.length
+    for (const row of rows) {
+      if (!Array.isArray(row) || row.length < 2 || row.length > MAX_TABLE_COLS || !row.every(isText)) {
+        return bad(`has a row that is not 2 to ${MAX_TABLE_COLS} pieces of text`)
+      }
+      if (width !== undefined && row.length !== width) return bad('has a row whose length differs from "cols"')
+    }
+    const table: FormTable = { rows: rows.map((row: string[]) => row.map((cell) => cell.trim())) }
+    if (isText(t.title) && t.title.trim()) table.title = t.title.trim()
+    if (cols) table.cols = (cols as string[]).map((c) => c.trim())
+    if (isText(t.note) && t.note.trim()) table.note = t.note.trim()
+    tables.push(table)
+  }
+  return { tables }
+}
 
 function parseWord(raw: Record<string, unknown>): Parsed {
   const word: Record<string, string> = {}
@@ -51,7 +90,11 @@ function parseWord(raw: Record<string, unknown>): Parsed {
   }
   if (word.gender && word.aspect) return { ok: false, problem: 'A word may not have both "gender" and "aspect"' }
   if (word.partner && !word.aspect) return { ok: false, problem: '"partner" requires "aspect"' }
-  return { ok: true, word: { id: raw.id as string, ...word } as unknown as Word }
+  const parsed = { id: raw.id as string, ...word } as unknown as Word
+  if (raw.tables === undefined || raw.tables === null) return { ok: true, word: parsed }
+  const tables = parseTables(raw.tables)
+  if ('problem' in tables) return { ok: true, word: parsed, problem: `${tables.problem}; tables left out` }
+  return { ok: true, word: { ...parsed, tables: tables.tables } }
 }
 
 function byteLength(text: string): number {
@@ -149,6 +192,7 @@ export function parseChapterFiles(files: RawFile[]): {
         errors.push({ file: chapter.file, wordId: id, problem: `${parsed.problem}; skipped` })
         return
       }
+      if (parsed.problem) errors.push({ file: chapter.file, wordId: id, problem: parsed.problem })
       words.set(id, { ...parsed.word, chapterId: chapter.id })
       chapter.wordIds.push(id)
     })
@@ -159,7 +203,12 @@ export function parseChapterFiles(files: RawFile[]): {
 
 /** First 16 hex characters of SHA-256 over the word's content fields. */
 export async function contentHash(word: Partial<Word>): Promise<string> {
-  const text = CONTENT_FIELDS.map((f) => word[f] ?? '').join('\u001f')
+  const parts: string[] = CONTENT_FIELDS.map((f) => word[f] ?? '')
+  for (const f of LATER_CONTENT_FIELDS) {
+    const v = word[f]
+    if (v !== undefined) parts.push(`${f}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+  }
+  const text = parts.join('\u001f')
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return Array.from(new Uint8Array(digest).slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('')
 }

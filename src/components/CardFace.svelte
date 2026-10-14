@@ -12,8 +12,10 @@
 <div class="face">
   {#if dir === 'cz-en'}
     <p class="prompt cz {gender}" lang="cs">{word.cz}</p>
+    {#if word.label}<p class="label">{word.label}</p>{/if}
   {:else}
     <p class="prompt en">{word.en ? englishPrompt({ en: word.en, aspect: word.aspect }) : ''}</p>
+    {#if word.label}<p class="label">{word.label}</p>{/if}
     {#if word.hint}<p class="hint">{word.hint}</p>{/if}
   {/if}
 
@@ -49,6 +51,15 @@
   }
   .prompt.en {
     font-size: clamp(1.6rem, 6.5vw, 2.25rem);
+  }
+  .label {
+    width: fit-content;
+    margin: 10px auto 0;
+    padding: 2px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.95rem;
   }
   .hint {
     margin-top: 6px;

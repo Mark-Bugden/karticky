@@ -97,7 +97,12 @@ class AppState {
   streakDays = $derived(streak(this.derived.cleared, studyDay(this.now)).current)
   newPerDay = $derived(this.pendingNewPerDay ?? this.derived.newPerDay)
   notSynced = $derived(this.sync.unpushed > 0 && (!this.sync.online || this.sync.problem !== null))
-  currentFlagged = $derived(this.study?.card ? isFlagged(this.world, parseCardId(this.study.card).wordId) : false)
+  /** Flagged words, hidden until Claude fixes them or the user unflags them. */
+  flagged = $derived(
+    [...this.derived.words.keys()]
+      .filter((wordId) => isFlagged(this.world, wordId))
+      .map((wordId) => ({ wordId, cz: this.set.words.get(wordId)?.cz ?? wordId })),
+  )
   suspended = $derived(
     [...this.derived.cards]
       .filter(([, c]) => c.suspended)
@@ -386,6 +391,12 @@ class AppState {
     if (s?.view === 'card' && !s.revealed) this.study = { ...s, revealed: true }
   }
 
+  /** Turns a revealed card back to its question side. */
+  hideAnswer(): void {
+    const s = this.study
+    if (s?.view === 'card' && s.revealed) this.study = { ...s, revealed: false }
+  }
+
   /** Writes the grade to IndexedDB before the next card renders. */
   async grade(r: Grade): Promise<void> {
     const s = this.study
@@ -441,20 +452,30 @@ class AppState {
     this.advance()
   }
 
-  /** After a suspend or delete in practice, the hidden cards leave the session. */
+  /** After a suspend, delete or flag in practice, the hidden cards leave the session. */
   private dropHiddenFromPractice(): void {
     const s = this.study
     if (!s?.practice) return
     this.study = { ...s, practice: { ...s.practice, queue: s.practice.queue.filter((id) => !isHidden(this.world, id)) } }
   }
 
-  async toggleFlagCurrent(): Promise<void> {
+  /** Flags the current word for Claude to fix; it is hidden until then, so the next card shows. */
+  async flagCurrent(): Promise<void> {
     const card = this.study?.card
     if (!card) return
     const wordId = parseCardId(card).wordId
     const hash = this.set.words.get(wordId)?.hash
-    if (this.currentFlagged) await this.engine.record('unflag', { word: wordId })
-    else if (hash) await this.engine.record('flag', { word: wordId, hash })
+    if (!hash) return
+    await this.engine.record('flag', { word: wordId, hash })
+    this.refresh()
+    this.dropHiddenFromPractice()
+    await this.afterChange()
+    this.advance()
+  }
+
+  /** Brings a flagged word back as it is. */
+  async unflag(wordId: string): Promise<void> {
+    await this.engine.record('unflag', { word: wordId })
     this.refresh()
     await this.afterChange()
   }

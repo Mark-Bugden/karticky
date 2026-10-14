@@ -5,6 +5,7 @@ import { cardId, makeEvent } from './events'
 import {
   buildPlan,
   chapterProgress,
+  dailyShuffle,
   dayStatus,
   dueCards,
   eligibleNewCards,
@@ -119,6 +120,9 @@ class Sim {
 }
 
 const dirs = (cards: string[]) => [...new Set(cards.map((c) => c.split(':')[1]))]
+/** The chapter of each card, for checking the mix without depending on the daily shuffle. */
+const chaptersOf = (cards: string[]) => cards.map((c) => c.split('-')[0])
+const sorted = (cards: string[]) => [...cards].sort()
 
 // ---- Replay ----
 
@@ -264,24 +268,44 @@ describe('new cards', () => {
     expect(newAllowance(sim.world())).toBe(8)
   })
 
-  it('takes misc first, then mixes chapters, lowest first, with ties by id and words in file order', () => {
+  it('takes misc first, then mixes chapters, lowest first, with ties by id', () => {
     const set = chapterSet([chapterFile('b', 2, 1), chapterFile('a', 2, 1), chapterFile('first', 1, 1), chapterFile('misc', 0, 2)])
-    const w = new Sim(set).world()
-    expect(eligibleNewCards(w)).toEqual(['misc-001:cz-en', 'misc-002:cz-en', 'first-001:cz-en', 'a-001:cz-en', 'b-001:cz-en'])
+    const cards = eligibleNewCards(new Sim(set).world())
+    expect(sorted(cards.slice(0, 2))).toEqual(['misc-001:cz-en', 'misc-002:cz-en'])
+    expect(cards.slice(2)).toEqual(['first-001:cz-en', 'a-001:cz-en', 'b-001:cz-en'])
   })
 
-  it('alternates two chapters, keeping each chapter in book order', () => {
+  it('alternates two chapters', () => {
     const sim = new Sim(chapterSet([chapterFile('c1', 1, 3), chapterFile('c2', 2, 3)]))
-    expect(sim.studyAll()).toEqual(['c1-001:cz-en', 'c2-001:cz-en', 'c1-002:cz-en', 'c2-002:cz-en', 'c1-003:cz-en', 'c2-003:cz-en'])
+    const day1 = sim.studyAll()
+    expect(chaptersOf(day1)).toEqual(['c1', 'c2', 'c1', 'c2', 'c1', 'c2'])
+    expect(dirs(day1)).toEqual(['cz-en'])
     sim.days(1)
-    expect(sim.studyAll().filter((c) => c.endsWith(':en-cz'))).toEqual([
-      'c1-001:en-cz',
-      'c2-001:en-cz',
-      'c1-002:en-cz',
-      'c2-002:en-cz',
-      'c1-003:en-cz',
-      'c2-003:en-cz',
-    ])
+    const day2 = sim.studyAll().filter((c) => c.endsWith(':en-cz'))
+    expect(chaptersOf(day2)).toEqual(['c1', 'c2', 'c1', 'c2', 'c1', 'c2'])
+    expect(sorted(day2)).toEqual(sorted(day1.map((c) => c.replace('cz-en', 'en-cz'))))
+  })
+
+  it('shuffles each chapter afresh every study day, the same way on every device', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 40)]))
+    const book = sim.set.chapters[0].wordIds.map((id) => `${id}:cz-en`)
+    const day1 = eligibleNewCards(sim.world())
+    expect(sorted(day1)).toEqual(sorted(book))
+    expect(day1).not.toEqual(book)
+    expect(eligibleNewCards(sim.world())).toEqual(day1) // stable through the day
+    sim.days(1)
+    expect(eligibleNewCards(sim.world())).not.toEqual(day1)
+    expect(dailyShuffle(book, '2026-10-13')).toEqual(dailyShuffle([...book].reverse(), '2026-10-13'))
+  })
+
+  it("puts a started word's English→Czech card ahead of new words in its chapter", () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 30)]))
+    const day1 = sim.studyAll()
+    sim.days(1)
+    const started = new Set(day1.map((c) => c.replace('cz-en', 'en-cz')))
+    const cards = eligibleNewCards(sim.world())
+    expect(cards.slice(0, 10).every((c) => started.has(c))).toBe(true)
+    expect(dirs(cards.slice(10))).toEqual(['cz-en'])
   })
 
   it('takes about half of the day from the lowest chapter and the rest from the others in turn', () => {
@@ -295,7 +319,7 @@ describe('new cards', () => {
     sim.review('c1-001:cz-en', 3, 'android-bbbbbb')
     sim.review('c1-002:cz-en', 3, 'android-bbbbbb')
     // Two from c1 already today, so c2 catches up before c1 continues.
-    expect(eligibleNewCards(sim.world()).slice(0, 4)).toEqual(['c2-001:cz-en', 'c2-002:cz-en', 'c1-003:cz-en', 'c2-003:cz-en'])
+    expect(chaptersOf(eligibleNewCards(sim.world()).slice(0, 4))).toEqual(['c2', 'c2', 'c1', 'c2'])
   })
 
   it('lets the English→Czech card in when its Czech→English sibling is suspended', () => {
@@ -459,6 +483,28 @@ describe('flags', () => {
     sim.add('unflag', { word: 'sample-002' })
     expect(isFlagged(sim.world(), 'sample-002')).toBe(false)
   })
+
+  it('hides a flagged word everywhere until it is fixed or unflagged', () => {
+    const sim = new Sim(chapterSet([chapterFile('c1', 1, 3)]))
+    sim.studyAll()
+    sim.days(2)
+    const flag = () => sim.add('flag', { word: 'c1-002', hash: sim.set.words.get('c1-002')!.hash })
+    flag()
+    const w = sim.world()
+    const of002 = (cards: string[]) => cards.filter((c) => c.startsWith('c1-002'))
+    expect(of002(dueCards(w))).toEqual([])
+    expect(of002(eligibleNewCards(w))).toEqual([])
+    expect(of002(practiceCards(w, ['c1']))).toEqual([])
+    expect(isDayCleared(w)).toBe(false) // c1-001 and c1-003 are still due
+    expect(chapterProgress(w)[0].total).toBe(4)
+
+    sim.add('unflag', { word: 'c1-002' })
+    expect(of002(dueCards(sim.world()))).toEqual(['c1-002:cz-en'])
+
+    flag()
+    sim.set.words.set('c1-002', { ...sim.set.words.get('c1-002')!, hash: 'fixed' })
+    expect(of002(dueCards(sim.world()))).toEqual(['c1-002:cz-en'])
+  })
 })
 
 describe('streak', () => {
@@ -521,9 +567,9 @@ describe('chapter ticking', () => {
 
   it('mixes only ticked chapters, the lowest ticked one taking the lead', () => {
     const sim = new Sim(threeChapters(), undefined, ['c2', 'c3'])
-    expect(eligibleNewCards(sim.world())).toEqual(['c2-001:cz-en', 'c3-001:cz-en', 'c2-002:cz-en', 'c3-002:cz-en', 'c2-003:cz-en', 'c3-003:cz-en'])
+    expect(chaptersOf(eligibleNewCards(sim.world()))).toEqual(['c2', 'c3', 'c2', 'c3', 'c2', 'c3'])
     sim.include('c1')
-    expect(eligibleNewCards(sim.world()).slice(0, 4)).toEqual(['c1-001:cz-en', 'c2-001:cz-en', 'c1-002:cz-en', 'c3-001:cz-en'])
+    expect(chaptersOf(eligibleNewCards(sim.world()).slice(0, 4))).toEqual(['c1', 'c2', 'c1', 'c3'])
   })
 
   it('pauses an unticked chapter entirely and resumes it with its history when ticked again', () => {

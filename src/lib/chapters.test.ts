@@ -106,6 +106,39 @@ describe('parseChapterFiles', () => {
     expect(errors.find((e) => e.problem.startsWith('Word 3'))?.problem).toMatch(/invalid "id"/)
   })
 
+  it('loads a label and well-formed tables', () => {
+    const tables = [
+      { title: 'Present', rows: [['já', 'mám'], ['ty', 'máš']] },
+      { cols: ['', 'singular', 'plural'], rows: [['nominative', ' pes ', 'psi']], note: 'Animate.' },
+    ]
+    const { words, errors } = parseChapterFiles([
+      file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, [word('me', { label: ' accusative, genitive ', tables })]),
+    ])
+    expect(errors).toEqual([])
+    expect(words.get('me')).toMatchObject({
+      label: 'accusative, genitive',
+      tables: [
+        { title: 'Present', rows: [['já', 'mám'], ['ty', 'máš']] },
+        { cols: ['', 'singular', 'plural'], rows: [['nominative', 'pes', 'psi']], note: 'Animate.' },
+      ],
+    })
+  })
+
+  it('keeps a word whose tables are malformed, without them, and reports it', () => {
+    const bad = [
+      word('not-list', { tables: { rows: [] } }),
+      word('no-rows', { tables: [{ title: 'X', rows: [] }] }),
+      word('short-row', { tables: [{ rows: [['only heading']] }] }),
+      word('ragged', { tables: [{ cols: ['', 'sg', 'pl'], rows: [['nom', 'a']] }] }),
+      word('number', { tables: [{ rows: [['nom', 3]] }] }),
+    ]
+    const { words, errors } = parseChapterFiles([file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, bad)])
+    expect([...words.keys()]).toEqual(['not-list', 'no-rows', 'short-row', 'ragged', 'number'])
+    for (const w of words.values()) expect(w).not.toHaveProperty('tables')
+    expect(errors).toHaveLength(5)
+    for (const e of errors) expect(e.problem).toMatch(/tables left out$/)
+  })
+
   it('reports a file over 500 KB but still loads it', () => {
     const big = word('big', { note: 'x'.repeat(520 * 1024) })
     const { words, errors } = parseChapterFiles([file('chapters/big.json', { id: 'big', order: 1, title: 'Big' }, [big])])
@@ -121,6 +154,15 @@ describe('contentHash', () => {
     expect(await contentHash(word('h'))).toBe(a)
     expect(await contentHash(word('h', { en: 'other' }))).not.toBe(a)
     expect(await contentHash(word('h', { note: 'added' }))).not.toBe(a)
+  })
+
+  it('keeps the hash of a word without the later fields, so existing flags still match', async () => {
+    // ce1-l01-057 as flagged on 14 Oct 2026, before label and tables existed.
+    const v = { cz: 'v + L', en: 'in', example: 'Petr je v kanceláři.', exampleEn: 'Petr is in the office.', note: 'Before v, f and some groups: ve, e.g. ve firmě.' }
+    expect(await contentHash(v)).toBe('84671a7ffc56af82')
+    expect(await contentHash({ ...v, label: 'locative' })).not.toBe('84671a7ffc56af82')
+    expect(await contentHash({ ...v, tables: [{ rows: [['a', 'b']] }] })).not.toBe('84671a7ffc56af82')
+    expect(await contentHash({ ...v, tables: [{ rows: [['a', 'c']] }] })).not.toBe(await contentHash({ ...v, tables: [{ rows: [['a', 'b']] }] }))
   })
 
   it('ignores the id and fields outside the content list', async () => {

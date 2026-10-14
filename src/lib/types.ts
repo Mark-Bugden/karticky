@@ -12,8 +12,21 @@ export interface Word {
   aspect?: Aspect
   partner?: string
   hint?: string
+  /** Grammatical form or register, shown with the word on both sides, e.g. "dative" or "formal (vy)". */
+  label?: string
   example: string
   exampleEn: string
+  note?: string
+  /** Conjugation or declension, shown on request wherever the Czech word is on screen. */
+  tables?: FormTable[]
+}
+
+/** A small grid of forms. Each row starts with its heading. */
+export interface FormTable {
+  title?: string
+  /** Column headings; the first sits above the row headings and may be empty. */
+  cols?: string[]
+  rows: string[][]
   note?: string
 }
 

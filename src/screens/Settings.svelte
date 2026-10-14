@@ -47,6 +47,23 @@
   </section>
 
   <section>
+    <h2>Flagged words</h2>
+    {#if app.flagged.length === 0}
+      <p class="muted">None.</p>
+    {:else}
+      <p class="muted small">Hidden until Claude fixes them. Unflag a word to study it as it is.</p>
+      <ul class="list">
+        {#each app.flagged as item (item.wordId)}
+          <li>
+            <span lang="cs">{item.cz}</span>
+            <button class="btn small" onclick={() => app.unflag(item.wordId)}>Unflag</button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+
+  <section>
     <h2>Sync</h2>
     <SyncLine />
     <p class="muted small">

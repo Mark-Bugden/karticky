@@ -10,7 +10,7 @@ File names: `chapters/<order, 2 digits>-<slug>.json` (e.g. `chapters/01-greeting
 | `chapter.id` | Yes | Unique across files; lowercase letters, digits and hyphens. `misc` is reserved for the misc chapter. If two files share an id, the later file by file name is skipped and reported |
 | `chapter.order` | Yes | Integer ≥ 1; ticked chapters are studied in ascending order; gaps allowed; equal orders are broken by `chapter.id`. Ignored for misc (write `0`) |
 | `chapter.title` | Yes | Shown in stats |
-| `words` | Yes | Array of words; array order is introduction order |
+| `words` | Yes | Array of words. New cards are introduced in a daily shuffled order, so array order does not matter |
 
 | Word field | Required | Meaning |
 | --- | --- | --- |
@@ -20,10 +20,12 @@ File names: `chapters/<order, 2 digits>-<slug>.json` (e.g. `chapters/01-greeting
 | `gender` | Nouns only | `m-anim`, `m-inanim`, `f` or `n` |
 | `aspect` | Verbs only | `impf`, `pf` or `biasp` (biaspectual) |
 | `partner` | Optional, verbs only | The aspect partner, e.g. `říct` for `říkat` |
-| `hint` | Optional | Short disambiguation shown on the English→Czech prompt, e.g. `furniture` |
+| `hint` | Optional | Short disambiguation shown on the English→Czech prompt only, e.g. `furniture` |
+| `label` | Optional | The word's form or register, shown under the word on both sides: a pronoun form's case (`accusative, genitive`), `informal (ty)`, `formal (vy)`, `formal or plural`, `formal`, `informal`, `colloquial` |
 | `example` | Yes | One Czech example sentence using the word |
 | `exampleEn` | Yes | English translation of the example |
 | `note` | Optional | One short line, e.g. an irregular form |
+| `tables` | Optional | Conjugation or declension, shown on request wherever the Czech word is on screen; see below |
 
 Rules:
 
@@ -36,7 +38,25 @@ Rules:
 7. Unknown fields are ignored, so later versions can add fields.
 8. Keep each file under 500 KB.
 9. Deliver a file by committing it to `karticky-czech/chapters/`, or by giving it to the user to upload on github.com.
-10. Changing any of a word's content fields clears a flag the user set on it, so fix flagged words by editing them in place.
+10. Changing any of a word's content fields clears a flag the user set on it, so fix flagged words by editing them in place. A flagged word's cards are hidden until then (or until the user unflags it).
+11. Use `label` for what the learner must know on both sides (which case or register), and `hint` only to tell apart English prompts that would otherwise collide.
+
+Tables: `tables` is a list of 1–6 tables, each `{ "title"?, "cols"?, "rows", "note"? }`. `rows` holds 1–24 rows of 2–6 strings; the first string of a row is its heading (a case, a person, "past"). `cols`, if given, are the column headings, the first one above the row headings (usually `""`), and every row has as many strings as `cols`. Conventions:
+
+- Verbs: a table titled `Present` (`Future` for a perfective verb, `Present / future` for a biaspectual one) with rows `já`, `ty`, `on, ona, ono`, `my`, `vy`, `oni`; a `Future` table where the future is not formed with budu (jít → půjdu); then `Other forms` with rows `future` (budu + infinitive), `past` and `imperative`. Reflexive se/si and fixed words from the headword follow each form. " / " separates variants, the everyday one first (`pracuju / pracuji`).
+- Nouns: `cols` `["", "singular", "plural"]` (or one number only) and rows `nominative`, `genitive`, `dative`, `accusative`, `vocative`, `locative`, `instrumental`; ", " separates variants.
+- Adjectives and adjective-like pronouns: `Singular` and `Plural` tables with `cols` `["", "masculine", "feminine", "neuter"]` and no vocative row; "animate / inanimate" in the masculine column where they differ; a `Comparison` table only for an irregular comparative.
+- A pronoun form with its own card (mě) gets the table of the pronoun it comes from, titled with that pronoun (já).
+
+A malformed `tables` field does not skip the word: the word loads without tables and the problem is reported.
+
+```json
+{ "id": "ce1-l01-066", "cz": "mě", "en": "me", "label": "accusative, genitive",
+  "example": "…", "exampleEn": "…",
+  "tables": [{ "title": "já", "rows": [["nominative", "já"], ["genitive", "mě, mne"], ["dative", "mně / mi"],
+    ["accusative", "mě, mne"], ["locative", "mně"], ["instrumental", "mnou"]],
+    "note": "After a slash: the short, unstressed form." }] }
+```
 
 App behaviour on bad input: a file that is not valid JSON or lacks a valid `format`/`chapter` is skipped whole; an invalid word is skipped alone; everything else loads. Every problem is listed in the summary's `fileErrors` and counted in Settings.
 

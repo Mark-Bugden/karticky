@@ -47,12 +47,20 @@ any of them could read the token.
 
 ## Using the app
 
-- **Reveal**: tap the card on the phone; Space or double-click on the computer.
+- **Reveal**: tap the card on the phone; Space or double-click on the computer. To turn a revealed
+  card back, swipe sideways across it (Space again on the computer).
+- **Labels**: a grey tag under the word gives its form or register, on both sides of the card: the
+  case of a pronoun form (mě: accusative, genitive), formal (vy) or informal (ty), formal or
+  colloquial.
+- **Conjugation / Declension**: wherever the Czech word is on screen (a Czech→English card, or an
+  English→Czech card once revealed), the button at the top left of the card shows the verb's
+  conjugation or the declension of a noun, adjective or pronoun.
 - **Gender colours** (as in Czech Express): light blue masculine animate, dark purple-blue masculine
   inanimate, red feminine, green neuter.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
 - **Undo** reverts the last grade and shows that card again. **⋯** on the card: Suspend this card,
-  Flag the word for fixing, or Delete the word.
+  Flag the word for fixing, or Delete the word. A flagged word is hidden on both devices until Claude
+  fixes it; Settings → Flagged words lists them, with Unflag to study one as it is.
 - **Chapters**: tick the chapters to study under Home → Choose (or Settings → Choose chapters), for
   example when you've done a lesson in class. New chapter files arrive unticked. An unticked chapter
   is paused: none of its cards are shown, and they keep their history for when it is ticked again.
@@ -61,8 +69,9 @@ any of them could read the token.
   chapter, with one tap to add it.
 - New cards: 10 a day by default (Settings), mixed over the ticked chapters: about half from the
   lowest ticked chapter that still has new cards, the rest from the others in turn. Within a chapter
-  words keep the book's order; Czech→English cards come first and their English→Czech cards arrive
-  from the next day. Once you're done for the day, **Learn 10 more** adds ten more new cards.
+  the order is shuffled afresh each day (the same on both devices). Czech→English cards come first;
+  a word's English→Czech card arrives from the next day, ahead of new words from its chapter. Once
+  you're done for the day, **Learn 10 more** adds ten more new cards.
 - **Practise** (Home): go over the words you've already started in the chapters you pick, in random
   order, whenever you like. Missed cards come back a few cards later until you get them; the end shows
   how many you got right first time. Answers count as ordinary reviews: the scheduler gives little
@@ -78,6 +87,8 @@ any of them could read the token.
 
 - Claude writes chapter files following [CARD_FORMAT.md](CARD_FORMAT.md) and they are committed to
   `karticky-czech/chapters/`. Problems with a file are listed in Settings → Chapter-file problems.
+- The conjugation and declension tables come from Wiktionary (English, then Czech), checked by
+  proofreading; the script that builds them is in `karticky-czech/tools/`.
 - Every sync also writes `summary/summary.json` to `karticky-czech`: each card's review history and
   state, totals per chapter and direction, and the flagged, deleted, removed, suspended and
   struggling lists. Settings → Download summary saves the same file as
@@ -109,7 +120,7 @@ GitHub Pages.
 | `src/lib/github.ts`, `src/lib/sync.ts` | GitHub Git Data API client and the sync protocol |
 | `src/lib/engine.ts` | Data core without UI: load, record, replay, sync |
 | `src/lib/app.svelte.ts` | App state for the screens: timers, sync triggers, study session |
-| `src/screens/`, `src/components/` | Setup, Home, Study (also runs practice), Settings, Chapters, Practise |
+| `src/screens/`, `src/components/` | Setup, Home, Study (also runs practice), Settings, Chapters, Practise; the card face and the conjugation/declension tables |
 | `src/lib/testing/fakeGitHub.ts` | In-memory GitHub used by the sync tests |
 
 Card state is never stored as truth: it is rebuilt by replaying the append-only event log. Each device
@@ -131,7 +142,16 @@ summary.
 - **Flags on removed words count as lapsed**: a word in no chapter file has no current content to
   match the flag's hash. This also keeps both devices' summaries identical.
 - **Content hash**: SHA-256 of the nine content fields joined with the U+001F separator, a missing
-  field counting as empty; first 16 hex characters.
+  field counting as empty; first 16 hex characters. Fields added later (`label`, `tables`) join the
+  hash only when a word has them, so adding them leaves every other word's hash, and any flag on it,
+  unchanged.
+- **Flags hide the word** like a suspended card, in study, practice, the streak and the chapter
+  totals, until its content changes (the flag lapses) or it is unflagged in Settings.
+- **Daily shuffle**: within a chapter, new cards are ordered by a hash of the study day and card id,
+  so the order is new each day, the same on both devices, and stable however often the queue is
+  rebuilt. English→Czech cards of words already started go ahead of new words.
+- **Swipe back**: the card and its scrolling content use `touch-action: pan-y pinch-zoom`, so vertical drags
+  scroll and sideways drags reach the app as swipes (at least 60 px, mostly sideways).
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
   event id) and a format version, and replayed again whenever either no longer matches. Measured: 30,000 events
   replay in about 120 ms on the development computer.
@@ -169,3 +189,4 @@ Ideas noted while building V1, not built:
 - Show how many reviews are waiting to sync next to "Not synced".
 - Tune FSRS parameters to the review history once there is enough of it.
 - A clearer settings icon (the system gear glyph varies by platform).
+- An animation for turning a card over (the user plans one).

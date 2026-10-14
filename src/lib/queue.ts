@@ -30,11 +30,14 @@ export function cardState(d: Derived, id: string): CardState {
 const reviewedOn = (c: CardState, day: string) => c.reviews.at(-1)?.day === day
 const isLearning = (c: CardState) => c.fsrs.state === State.Learning || c.fsrs.state === State.Relearning
 
-/** Rule 1: suspended cards, cards of deleted words and cards of words in no current chapter file. */
+/**
+ * Rule 1: suspended cards, cards of deleted words, cards of words in no current chapter file, and
+ * cards of flagged words, until the word is fixed (which lapses the flag) or unflagged.
+ */
 export function isHidden(w: World, id: string): boolean {
   const { wordId } = parseCardId(id)
   if (!w.set.words.has(wordId)) return true
-  if (w.derived.words.get(wordId)?.deleted) return true
+  if (w.derived.words.get(wordId)?.deleted || isFlagged(w, wordId)) return true
   return w.derived.cards.get(id)?.suspended ?? false
 }
 
@@ -94,7 +97,25 @@ export function dueCards(w: World): string[] {
   return out
 }
 
-/** Rules 4–6: never-reviewed cards that may be introduced now, in introduction order. */
+/** A 32-bit FNV-1a hash with a final mix, so ids that differ only at the end still scatter. */
+function hash32(text: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b)
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35)
+  return (h ^ (h >>> 16)) >>> 0
+}
+
+/** The day's shuffle: a fresh order every study day, the same on every device. */
+export function dailyShuffle(cards: string[], today: string): string[] {
+  const keyed = cards.map((id) => ({ id, key: hash32(`${today}|${id}`) }))
+  return keyed.sort((a, b) => a.key - b.key || (a.id < b.id ? -1 : 1)).map((k) => k.id)
+}
+
+/**
+ * Rules 4–6: never-reviewed cards that may be introduced now, in the order they would be. Within a
+ * chapter the order is shuffled daily, English→Czech cards of words already started first.
+ */
 export function eligibleNewCards(w: World): string[] {
   const today = studyDay(w.now)
   const misc: string[] = []
@@ -102,7 +123,8 @@ export function eligibleNewCards(w: World): string[] {
   for (const ch of w.set.chapters) {
     // Rule 5: an unticked chapter gives no new cards.
     if (!isIncluded(w, ch.id)) continue
-    const cards: string[] = []
+    const started: string[] = []
+    const fresh: string[] = []
     for (const wordId of ch.wordIds) {
       for (const dir of DIRECTIONS) {
         const id = cardId(wordId, dir)
@@ -110,11 +132,14 @@ export function eligibleNewCards(w: World): string[] {
         if (dir === 'en-cz') {
           const sib = cardId(wordId, 'cz-en')
           const introduced = cardState(w.derived, sib).introduced
-          if (!isHidden(w, sib) && !(introduced && introduced < today)) continue
+          if (isHidden(w, sib)) fresh.push(id)
+          else if (introduced && introduced < today) started.push(id)
+        } else {
+          fresh.push(id)
         }
-        cards.push(id)
       }
     }
+    const cards = [...dailyShuffle(started, today), ...dailyShuffle(fresh, today)]
     if (ch.id === MISC_ID) misc.push(...cards)
     else if (cards.length > 0) chapters.push({ id: ch.id, cards })
   }

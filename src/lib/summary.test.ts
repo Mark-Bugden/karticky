@@ -107,7 +107,7 @@ describe('summary', () => {
     expect(JSON.stringify(rest)).not.toMatch(/T\d{2}:\d{2}|\d{2}:\d{2}:\d{2}/)
   })
 
-  it('counts only non-hidden cards in group metrics but lists hidden cards', () => {
+  it('counts only non-hidden cards in group metrics, flagged words being hidden, but lists hidden cards', () => {
     const log = new Log()
     log.review('sample-001:cz-en', 3)
     log.add('suspend', { card: 'sample-001:en-cz' })
@@ -115,7 +115,7 @@ describe('summary', () => {
     log.add('flag', { word: 'sample-003', hash: 'hash-sample-003' })
     log.add('flag', { word: 'sample-004', hash: 'stale' })
     const s = buildSummary(log.world(), 'd', new Map())
-    expect(s.totals).toEqual({ words: 7, cards: 13, introduced: 1, reviews: 1, lapses: 0, dueToday: 0 })
+    expect(s.totals).toEqual({ words: 6, cards: 11, introduced: 1, reviews: 1, lapses: 0, dueToday: 0 })
     expect(s.cards).toHaveLength(16)
     expect(s.lists).toEqual({
       struggling: [],
@@ -125,10 +125,10 @@ describe('summary', () => {
       suspended: ['sample-001:en-cz'],
     })
     expect(s.byChapter).toEqual([
-      expect.objectContaining({ id: 'sample', title: 'Sample', order: 1, words: 7, cards: 13, introduced: 1 }),
+      expect.objectContaining({ id: 'sample', title: 'Sample', order: 1, words: 6, cards: 11, introduced: 1 }),
     ])
-    expect(s.byDirection['cz-en']).toMatchObject({ cards: 7, introduced: 1 })
-    expect(s.byDirection['en-cz']).toMatchObject({ cards: 6, introduced: 0 })
+    expect(s.byDirection['cz-en']).toMatchObject({ cards: 6, introduced: 1 })
+    expect(s.byDirection['en-cz']).toMatchObject({ cards: 5, introduced: 0 })
   })
 
   it('marks ticked chapters and leaves paused cards out of dueToday', () => {

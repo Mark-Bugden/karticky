@@ -1,5 +1,6 @@
 <script lang="ts">
   import CardFace from '../components/CardFace.svelte'
+  import FormTables from '../components/FormTables.svelte'
   import { app } from '../lib/app.svelte'
   import { LEARN_MORE_COUNT } from '../lib/config'
   import type { Grade } from '../lib/types'
@@ -12,38 +13,54 @@
   ]
   const touch = matchMedia('(pointer: coarse)').matches
 
+  /** A sideways swipe at least this long, and mostly sideways, turns a revealed card back. */
+  const SWIPE_PX = 60
+
   let menuOpen = $state(false)
   let confirmDelete = $state(false)
+  let formsOpen = $state(false)
   let lastPointer = 'mouse'
   let down: { x: number; y: number } | null = null
 
   const s = $derived(app.study)
+  /** Conjugation or declension, offered wherever the Czech word is on screen. */
+  const tables = $derived(s?.view === 'card' && s.word?.tables && (s.dir === 'cz-en' || s.revealed) ? s.word.tables : null)
 
   function onPointerDown(e: PointerEvent) {
     lastPointer = e.pointerType
     down = { x: e.clientX, y: e.clientY }
   }
 
-  // On a touch screen one tap on the card reveals it. Mouse users press Space or double-click.
+  // On a touch screen one tap on the card reveals it and a sideways swipe turns it back.
+  // Mouse users press Space or double-click.
   function onPointerUp(e: PointerEvent) {
     const start = down
     down = null
-    if (e.pointerType === 'mouse' || !start || menuOpen) return
-    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) return // a scroll, not a tap
+    if (e.pointerType === 'mouse' || !start || menuOpen || formsOpen) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > 2 * Math.abs(dy)) {
+      app.hideAnswer()
+      return
+    }
+    if (Math.hypot(dx, dy) > 10) return // a scroll, not a tap
     if ((e.target as Element).closest('button, .menu')) return
     app.reveal()
   }
 
   function onKey(e: KeyboardEvent) {
     if (e.ctrlKey || e.metaKey || e.altKey) return
-    if (menuOpen || confirmDelete) {
-      if (e.key === 'Escape') menuOpen = confirmDelete = false
+    if (menuOpen || confirmDelete || formsOpen) {
+      if (e.key === 'Escape') menuOpen = confirmDelete = formsOpen = false
       return
     }
     if (e.key === ' ') {
       e.preventDefault()
       ;(document.activeElement as HTMLElement | null)?.blur()
-      if (!e.repeat) app.reveal()
+      if (!e.repeat) {
+        if (s?.revealed) app.hideAnswer()
+        else app.reveal()
+      }
     } else if (['1', '2', '3', '4'].includes(e.key) && !e.repeat) {
       void app.grade(Number(e.key) as Grade)
     } else if (e.key === 'Escape') {
@@ -84,10 +101,15 @@
       class="card"
       onpointerdown={onPointerDown}
       onpointerup={onPointerUp}
+      onpointercancel={() => (down = null)}
       ondblclick={() => lastPointer === 'mouse' && app.reveal()}
     >
       <div class="card-top">
-        {#if app.currentFlagged}<span class="flag" title="Flagged for Claude to fix">⚑ Flagged</span>{/if}
+        {#if tables}
+          <button class="btn small forms-btn" onpointerup={(e) => e.stopPropagation()} onclick={() => (formsOpen = true)}>
+            {s.word.aspect ? 'Conjugation' : 'Declension'}
+          </button>
+        {/if}
         <button
           class="icon-btn menu-btn"
           aria-label="Card actions"
@@ -102,9 +124,7 @@
       {#if menuOpen}
         <div class="menu" role="menu">
           <button role="menuitem" onclick={() => act(() => app.suspendCurrent())}>Suspend this card</button>
-          <button role="menuitem" onclick={() => act(() => app.toggleFlagCurrent())}>
-            {app.currentFlagged ? 'Unflag word' : 'Flag word for fixing'}
-          </button>
+          <button role="menuitem" onclick={() => act(() => app.flagCurrent())}>Flag word for fixing</button>
           <button role="menuitem" class="danger" onclick={() => ((menuOpen = false), (confirmDelete = true))}>Delete word…</button>
         </div>
       {/if}
@@ -146,6 +166,21 @@
 
   {#if menuOpen}
     <button class="backdrop" aria-label="Close menu" onclick={() => (menuOpen = false)}></button>
+  {/if}
+
+  {#if formsOpen && tables && s?.word}
+    <div class="modal-backdrop">
+      <button class="backdrop-close" aria-label="Close" onclick={() => (formsOpen = false)}></button>
+      <div class="modal forms" role="dialog" aria-modal="true" aria-labelledby="forms-title">
+        <div class="forms-head">
+          <h2 id="forms-title" lang="cs">{s.word.cz}</h2>
+          <button class="icon-btn" aria-label="Close" onclick={() => (formsOpen = false)}>✕</button>
+        </div>
+        <div class="forms-body">
+          <FormTables {tables} />
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if confirmDelete}
@@ -208,7 +243,8 @@
     border-radius: 20px;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: manipulation;
+    /* Vertical drags scroll a long card; sideways drags reach the page as swipes. */
+    touch-action: pan-y pinch-zoom;
     -webkit-tap-highlight-color: transparent;
   }
   .card-top {
@@ -218,16 +254,15 @@
     gap: 8px;
     min-height: 44px;
   }
-  .flag {
+  .forms-btn {
     margin-right: auto;
-    color: var(--warn);
-    font-size: 0.9rem;
-    font-weight: 600;
   }
   .content {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    /* A scroll container starts its own touch-action, so it repeats the card's. */
+    touch-action: pan-y pinch-zoom;
     display: flex;
     flex-direction: column;
   }
@@ -334,6 +369,36 @@
   .modal p {
     margin: 0 0 18px;
     font-size: 1.05rem;
+  }
+  .backdrop-close {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: transparent;
+    cursor: default;
+  }
+  .modal.forms {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    max-height: calc(100dvh - 32px);
+    padding: 8px 8px 16px 20px;
+  }
+  .forms-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .forms-head h2 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .forms-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 12px;
   }
   .modal-actions {
     display: flex;
