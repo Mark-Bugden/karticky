@@ -51,11 +51,14 @@ any of them could read the token.
   computer. A sideways swipe (Space on the computer) also turns a revealed card back.
 - **Pull down to refresh** works only on Home, so a downward drag never reloads the app mid-session.
 - **Labels**: a grey tag under the word gives its form or register, on both sides of the card: the
-  case of a pronoun form (mě: accusative, genitive), formal (vy) or informal (ty), formal or
+  case of a pronoun form (mě: akuzativ, genitiv), formal (vy) or informal (ty), formal or
   colloquial.
 - **Conjugation / Declension**: wherever the Czech word is on screen (a Czech→English card, or an
   English→Czech card once revealed), the button at the top left of the card shows the verb's
-  conjugation or the declension of a noun, adjective or pronoun. Tap anywhere to close it.
+  conjugation or the declension of a noun, adjective or pronoun, sized to fit the screen without
+  scrolling: cases named in Czech, adjectives and noun phrases in the singular only. On a narrow
+  screen a long adjective lists each case's forms in the gender colours instead of a grid. Tap
+  anywhere to close it.
 - **Gender colours** (as in Czech Express): light blue masculine animate, dark purple-blue masculine
   inanimate, red feminine, green neuter.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.

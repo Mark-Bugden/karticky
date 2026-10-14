@@ -168,7 +168,7 @@
   {#if formsOpen && tables && s?.word}
     <!-- A tap anywhere closes the tables; scrolling them is not a tap. Esc closes them too. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="modal-backdrop" onclick={() => (formsOpen = false)}>
+    <div class="modal-backdrop sheet" onclick={() => (formsOpen = false)}>
       <div class="modal forms" role="dialog" aria-modal="true" aria-labelledby="forms-title">
         <div class="forms-head">
           <h2 id="forms-title" lang="cs">{s.word.cz}</h2>
@@ -368,12 +368,15 @@
     margin: 0 0 18px;
     font-size: 1.05rem;
   }
+  .modal-backdrop.sheet {
+    padding: 8px;
+  }
   .modal.forms {
     display: flex;
     flex-direction: column;
-    max-width: 480px;
-    max-height: calc(100dvh - 32px);
-    padding: 8px 8px 16px 20px;
+    max-width: 520px;
+    max-height: calc(100dvh - 16px);
+    padding: 4px 4px 12px 14px;
   }
   .forms-head {
     display: flex;
@@ -383,12 +386,12 @@
   }
   .forms-head h2 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
   .forms-body {
     min-height: 0;
     overflow-y: auto;
-    padding-right: 12px;
+    padding-right: 10px;
   }
   .modal-actions {
     display: flex;
