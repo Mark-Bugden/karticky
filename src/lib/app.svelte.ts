@@ -391,10 +391,10 @@ class AppState {
     if (s?.view === 'card' && !s.revealed) this.study = { ...s, revealed: true }
   }
 
-  /** Turns a revealed card back to its question side. */
-  hideAnswer(): void {
+  /** Turns the card over: reveals it, or turns a revealed card back to its question side. */
+  flip(): void {
     const s = this.study
-    if (s?.view === 'card' && s.revealed) this.study = { ...s, revealed: false }
+    if (s?.view === 'card') this.study = { ...s, revealed: !s.revealed }
   }
 
   /** Writes the grade to IndexedDB before the next card renders. */

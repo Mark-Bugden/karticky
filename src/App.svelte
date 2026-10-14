@@ -11,6 +11,11 @@
   onMount(() => {
     void app.init()
   })
+
+  // Pull-to-refresh only on Home: elsewhere a downward drag would reload the app mid-session.
+  $effect(() => {
+    document.documentElement.classList.toggle('no-pull-refresh', app.screen !== 'home')
+  })
 </script>
 
 {#if app.fatal}

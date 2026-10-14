@@ -47,14 +47,15 @@ any of them could read the token.
 
 ## Using the app
 
-- **Reveal**: tap the card on the phone; Space or double-click on the computer. To turn a revealed
-  card back, swipe sideways across it (Space again on the computer).
+- **Reveal**: tap the card or swipe sideways across it on the phone; Space or double-click on the
+  computer. A sideways swipe (Space on the computer) also turns a revealed card back.
+- **Pull down to refresh** works only on Home, so a downward drag never reloads the app mid-session.
 - **Labels**: a grey tag under the word gives its form or register, on both sides of the card: the
   case of a pronoun form (mě: accusative, genitive), formal (vy) or informal (ty), formal or
   colloquial.
 - **Conjugation / Declension**: wherever the Czech word is on screen (a Czech→English card, or an
   English→Czech card once revealed), the button at the top left of the card shows the verb's
-  conjugation or the declension of a noun, adjective or pronoun.
+  conjugation or the declension of a noun, adjective or pronoun. Tap anywhere to close it.
 - **Gender colours** (as in Czech Express): light blue masculine animate, dark purple-blue masculine
   inanimate, red feminine, green neuter.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
@@ -150,8 +151,10 @@ summary.
 - **Daily shuffle**: within a chapter, new cards are ordered by a hash of the study day and card id,
   so the order is new each day, the same on both devices, and stable however often the queue is
   rebuilt. English→Czech cards of words already started go ahead of new words.
-- **Swipe back**: the card and its scrolling content use `touch-action: pan-y pinch-zoom`, so vertical drags
-  scroll and sideways drags reach the app as swipes (at least 60 px, mostly sideways).
+- **Swipe to turn over**: the card and its scrolling content use `touch-action: pan-y pinch-zoom`, so
+  vertical drags scroll and sideways drags reach the app as swipes (at least 60 px, mostly sideways).
+- **Pull-to-refresh** is switched off outside Home with `overscroll-behavior-y: none` on the page,
+  set by a class on `<html>` that follows the current screen.
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
   event id) and a format version, and replayed again whenever either no longer matches. Measured: 30,000 events
   replay in about 120 ms on the development computer.

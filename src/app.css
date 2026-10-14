@@ -57,6 +57,11 @@ body {
   color: var(--text);
 }
 
+html.no-pull-refresh,
+html.no-pull-refresh body {
+  overscroll-behavior-y: none;
+}
+
 #app {
   min-height: 100%;
   display: flex;

@@ -13,7 +13,7 @@
   ]
   const touch = matchMedia('(pointer: coarse)').matches
 
-  /** A sideways swipe at least this long, and mostly sideways, turns a revealed card back. */
+  /** A sideways swipe at least this long, and mostly sideways, turns the card over. */
   const SWIPE_PX = 60
 
   let menuOpen = $state(false)
@@ -31,8 +31,8 @@
     down = { x: e.clientX, y: e.clientY }
   }
 
-  // On a touch screen one tap on the card reveals it and a sideways swipe turns it back.
-  // Mouse users press Space or double-click.
+  // On a touch screen one tap on the card reveals it and a sideways swipe, either way, turns it over.
+  // Mouse users press Space (which also turns it back) or double-click.
   function onPointerUp(e: PointerEvent) {
     const start = down
     down = null
@@ -40,7 +40,7 @@
     const dx = e.clientX - start.x
     const dy = e.clientY - start.y
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > 2 * Math.abs(dy)) {
-      app.hideAnswer()
+      app.flip()
       return
     }
     if (Math.hypot(dx, dy) > 10) return // a scroll, not a tap
@@ -57,10 +57,7 @@
     if (e.key === ' ') {
       e.preventDefault()
       ;(document.activeElement as HTMLElement | null)?.blur()
-      if (!e.repeat) {
-        if (s?.revealed) app.hideAnswer()
-        else app.reveal()
-      }
+      if (!e.repeat) app.flip()
     } else if (['1', '2', '3', '4'].includes(e.key) && !e.repeat) {
       void app.grade(Number(e.key) as Grade)
     } else if (e.key === 'Escape') {
@@ -169,8 +166,9 @@
   {/if}
 
   {#if formsOpen && tables && s?.word}
-    <div class="modal-backdrop">
-      <button class="backdrop-close" aria-label="Close" onclick={() => (formsOpen = false)}></button>
+    <!-- A tap anywhere closes the tables; scrolling them is not a tap. Esc closes them too. -->
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="modal-backdrop" onclick={() => (formsOpen = false)}>
       <div class="modal forms" role="dialog" aria-modal="true" aria-labelledby="forms-title">
         <div class="forms-head">
           <h2 id="forms-title" lang="cs">{s.word.cz}</h2>
@@ -370,15 +368,7 @@
     margin: 0 0 18px;
     font-size: 1.05rem;
   }
-  .backdrop-close {
-    position: absolute;
-    inset: 0;
-    border: none;
-    background: transparent;
-    cursor: default;
-  }
   .modal.forms {
-    position: relative;
     display: flex;
     flex-direction: column;
     max-width: 480px;
