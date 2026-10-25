@@ -163,6 +163,11 @@ summary.
   only card ids, log files and the summary use the deck's code (`cz-en`, `en-cz`). A card's direction
   and its sibling are read from the shape of its id, so only building a card id and checking another
   device's events need the profile.
+- **Deck choice**: Setup asks GitHub about both data repos and takes the token's deck only when the
+  token sees exactly one. If one repo answers and the other cannot be asked (offline, rate limit),
+  Setup shows that problem and chooses nothing, since the token might see both. The deck is kept in
+  `localStorage` (`karticky-deck`); a missing value means Czech. Chrome lists the expected 404 for
+  the other repo in the console.
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
   event id) and a format version, and replayed again whenever either no longer matches. Measured: 30,000 events
   replay in about 120 ms on the development computer.

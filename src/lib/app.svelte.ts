@@ -2,12 +2,13 @@
 // current study session. Screens read these fields and call these methods.
 
 import { MISC_ID } from './chapters'
-import { DECKS, GITHUB_OWNER, SYNC_INTERVAL_MS } from './config'
+import { GITHUB_OWNER, SYNC_INTERVAL_MS } from './config'
 import { getMeta, KartickyDB, setMeta, unpushedCount, type LastSeenWord } from './db'
+import { findDeck, setupChoice, storeDeck, storedDeck } from './decks'
 import { emptyChapterSet, Engine } from './engine'
 import { parseCardId } from './events'
 import { minutesUntil, timeAgo } from './format'
-import { checkAccess, GitHub, GitHubError, type ProblemKind } from './github'
+import { GitHub, GitHubError, type ProblemKind } from './github'
 import {
   buildPlan,
   chapterProgress,
@@ -70,8 +71,8 @@ function describeProblem(e: unknown, deck: DeckProfile): { kind: ProblemKind; me
 }
 
 class AppState {
-  /** The deck this device studies. */
-  readonly deck: DeckProfile = DECKS.czech
+  /** The deck this device studies, fixed once it holds a token or events. */
+  deck = $state.raw<DeckProfile>(storedDeck())
   screen = $state<Screen>('loading')
   /** Setup was opened to replace the token, so it can be cancelled back to this screen. */
   setupReturn = $state<Screen | null>(null)
@@ -99,6 +100,8 @@ class AppState {
   streakDays = $derived(streak(this.derived.cleared, studyDay(this.now)).current)
   newPerDay = $derived(this.pendingNewPerDay ?? this.derived.newPerDay)
   notSynced = $derived(this.sync.unpushed > 0 && (!this.sync.online || this.sync.problem !== null))
+  /** Setup names the deck's repo only once the device holds that deck's token or events. */
+  deckKnown = $derived(this.hasToken || this.derived.count > 0)
   /** Flagged words, hidden until Claude fixes them or the user unflags them. */
   flagged = $derived(
     [...this.derived.words.keys()]
@@ -123,14 +126,7 @@ class AppState {
 
   async init(): Promise<void> {
     try {
-      this.db = new KartickyDB(this.deck.db)
-      this.engine = new Engine(this.db, this.deck)
-      await this.engine.load()
-      this.refresh()
-      this.token = (await getMeta(this.db, 'token')) ?? null
-      this.hasToken = this.token !== null
-      const last = await getMeta(this.db, 'lastSyncAt')
-      this.sync.lastSyncAt = last ? new Date(last) : null
+      await this.openDeck(this.deck)
       this.sync.online = navigator.onLine
       await this.requestPersistentStorage()
       this.screen = this.token ? 'home' : 'setup'
@@ -145,6 +141,23 @@ class AppState {
   }
 
   // ---- Plumbing ----
+
+  /** Opens a deck's own database and loads its state, closing the one open before. */
+  private async openDeck(deck: DeckProfile): Promise<void> {
+    if (this.engine) {
+      await this.engine.flushCache()
+      this.db.close()
+    }
+    this.deck = deck
+    this.db = new KartickyDB(deck.db)
+    this.engine = new Engine(this.db, deck)
+    await this.engine.load()
+    this.refresh()
+    this.token = (await getMeta(this.db, 'token')) ?? null
+    this.hasToken = this.token !== null
+    const last = await getMeta(this.db, 'lastSyncAt')
+    this.sync.lastSyncAt = last ? new Date(last) : null
+  }
 
   private refresh(): void {
     this.set = this.engine.set
@@ -285,10 +298,19 @@ class AppState {
     }
   }
 
-  /** Setup: checks the token can see the data repo, stores it, then runs the first sync. */
+  /**
+   * Setup: finds the token's deck from the repo it can see, and refuses it if this device already
+   * studies the other deck. On an empty device it switches to the token's deck. Then it stores the
+   * token and runs the first sync.
+   */
   async saveToken(token: string): Promise<string | null> {
-    const result = await checkAccess(token, this.deck.repo)
-    if (!result.ok) return result.message
+    const found = await findDeck(token)
+    if (!found.ok) return found.message
+    const hasData = this.token !== null || (await this.db.events.count()) > 0
+    const choice = setupChoice(this.deck, hasData, found.deck)
+    if (choice.kind === 'refuse') return choice.message
+    storeDeck(found.deck)
+    if (choice.kind === 'switch') await this.openDeck(found.deck)
     await setMeta(this.db, 'token', token)
     this.token = token
     this.hasToken = true

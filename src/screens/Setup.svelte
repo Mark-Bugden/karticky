@@ -18,7 +18,11 @@
 
 <main class="page">
   <h1>Kartičky</h1>
-  <p>Your cards and progress are kept in your private GitHub repository <strong>{GITHUB_OWNER}/{app.deck.repo}</strong>.</p>
+  {#if app.deckKnown}
+    <p>Your cards and progress are kept in your private GitHub repository <strong>{GITHUB_OWNER}/{app.deck.repo}</strong>.</p>
+  {:else}
+    <p>Your cards and progress are kept in a private GitHub repository.</p>
+  {/if}
   <p>Paste this device's fine-grained token for it below. The token stays on this device.</p>
 
   <form onsubmit={save}>

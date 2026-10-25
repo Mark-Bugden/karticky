@@ -22,6 +22,8 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 
 export class FakeGitHub {
+  constructor(public repo = 'karticky-czech') {}
+
   blobs = new Map<string, string>()
   trees = new Map<string, Map<string, string>>()
   commits = new Map<string, Commit>()
@@ -90,12 +92,12 @@ export class FakeGitHub {
     if (headers.get('authorization') === 'Bearer bad-token') return json(401, { message: 'Bad credentials' })
     const body = init.body ? JSON.parse(init.body as string) : undefined
 
-    const repo = '/repos/mark-bugden/karticky-czech'
+    const repo = `/repos/mark-bugden/${this.repo}`
     if (!path.startsWith(repo) || !this.repoVisible) return json(404, { message: 'Not Found' })
     const rest = path.slice(repo.length)
     let m: RegExpMatchArray | null
 
-    if (method === 'GET' && rest === '') return json(200, { full_name: 'mark-bugden/karticky-czech' })
+    if (method === 'GET' && rest === '') return json(200, { full_name: `mark-bugden/${this.repo}` })
     if (method === 'GET' && rest === '/git/ref/heads/main') {
       return this.head ? json(200, { object: { sha: this.head } }) : json(409, { message: 'Git Repository is empty.' })
     }
@@ -141,5 +143,19 @@ export class FakeGitHub {
       return json(200, { object: { sha: body.sha } })
     }
     return json(404, { message: `No fake route for ${method} ${rest}` })
+  }
+}
+
+/**
+ * One GitHub for several fake repos. A token named in `access` sees only the repos listed for it, as a
+ * fine-grained token does (404 for the others); any other token sees every repo.
+ */
+export function fakeGitHubs(servers: FakeGitHub[], access: Record<string, string[]> = {}): FetchFn {
+  return async (url, init) => {
+    const token = new Headers(init.headers).get('authorization')?.replace(/^Bearer /, '') ?? ''
+    const path = url.replace('https://api.github.com', '')
+    const server = servers.find((s) => new RegExp(`^/repos/mark-bugden/${s.repo}(/|$)`).test(path))
+    if (!server || (access[token] && !access[token].includes(server.repo))) return json(404, { message: 'Not Found' })
+    return server.fetch(url, init)
   }
 }

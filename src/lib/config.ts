@@ -12,7 +12,7 @@ export const GITHUB_API_VERSION = '2026-03-10'
  * The decks the app knows. A device studies one, chosen by its token. The Czech values are in every
  * existing card id, summary and database, so they never change.
  */
-export const DECKS = {
+export const DECKS: Readonly<Record<'czech' | 'spanish', DeckProfile>> = {
   czech: {
     id: 'czech',
     repo: 'karticky-czech',
@@ -39,7 +39,7 @@ export const DECKS = {
     db: 'karticky-spanish',
     syncLock: 'karticky-sync-spanish',
   },
-} as const satisfies Record<string, DeckProfile>
+}
 
 /** The study day rolls over at this local hour, as in Anki. */
 export const ROLLOVER_HOUR = 4

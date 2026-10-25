@@ -140,9 +140,9 @@ export class GitHub {
   }
 }
 
-export type AccessResult = { ok: true } | { ok: false; message: string }
+export type AccessResult = { ok: true } | { ok: false; kind: ProblemKind; message: string }
 
-/** Setup's check: can this token read the data repo? */
+/** Setup's check: can this token read this data repo? */
 export async function checkAccess(token: string, repo: string, fetchFn?: FetchFn): Promise<AccessResult> {
   try {
     await new GitHub(token, repo, fetchFn).getRepo()
@@ -158,6 +158,6 @@ export async function checkAccess(token: string, repo: string, fetchFn?: FetchFn
       conflict: 'GitHub returned an unexpected answer. Try again.',
       http: 'GitHub returned an unexpected answer. Try again.',
     }
-    return { ok: false, message: message[kind] }
+    return { ok: false, kind, message: message[kind] }
   }
 }
