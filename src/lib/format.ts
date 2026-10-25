@@ -22,8 +22,9 @@ export function partnerLine(w: Pick<Word, 'term' | 'aspect' | 'partner'>): strin
 export const directionLabel = (deck: DeckProfile, d: Direction) =>
   d === 'forward' ? `${deck.name} → English` : `English → ${deck.name}`
 
-/** The tables button: Conjugation for a verb, otherwise the deck's name for its other tables (Declension). */
-export const formsButton = (deck: DeckProfile, w: Pick<Word, 'aspect'>) => (w.aspect ? 'Conjugation' : deck.formsButton)
+/** The tables button: Conjugation for a verb, otherwise the deck's name for its other tables (Declension, Forms). */
+export const formsButton = (deck: DeckProfile, w: Pick<Word, 'aspect' | 'verb'>) =>
+  w.aspect || w.verb ? 'Conjugation' : deck.formsButton
 
 /** "15 · A2/1 · Lesson 1"; the misc chapter shows only its title. */
 export const chapterLabel = (ch: Pick<Chapter, 'id' | 'order' | 'title'>) =>

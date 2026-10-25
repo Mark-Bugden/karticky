@@ -1,4 +1,5 @@
-export type Gender = 'm-anim' | 'm-inanim' | 'f' | 'n'
+/** Czech: m-anim, m-inanim, f, n. Spanish: m, f. */
+export type Gender = 'm-anim' | 'm-inanim' | 'f' | 'n' | 'm'
 export type Aspect = 'impf' | 'pf' | 'biasp'
 /** Forward: the deck's language → English. Reverse: English → the deck's language. */
 export type Direction = 'forward' | 'reverse'
@@ -18,7 +19,7 @@ export interface DeckProfile {
   lang: string
   /** The genders a noun may have in this deck's chapter files. */
   genders: readonly Gender[]
-  /** Whether verbs have an aspect, and may name an aspect partner. */
+  /** Whether verbs have an aspect, and may name an aspect partner. Otherwise a verb is marked with `verb`. */
   aspect: boolean
   /** Table column headings that name a gender, with the gender whose colour they take. */
   tableGenders: Readonly<Record<string, Gender>>
@@ -39,6 +40,8 @@ export interface Word {
   gender?: Gender
   aspect?: Aspect
   partner?: string
+  /** Marks a verb in a deck without aspect (Spanish). */
+  verb?: boolean
   hint?: string
   /** Grammatical form or register, shown with the word on both sides, e.g. "dative" or "formal (vy)". */
   label?: string

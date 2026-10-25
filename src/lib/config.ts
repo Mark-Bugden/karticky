@@ -26,6 +26,19 @@ export const DECKS = {
     db: 'karticky',
     syncLock: 'karticky-sync',
   },
+  spanish: {
+    id: 'spanish',
+    repo: 'karticky-spanish',
+    code: 'es',
+    name: 'Spanish',
+    lang: 'es-ES',
+    genders: ['m', 'f'],
+    aspect: false,
+    tableGenders: { masculine: 'm', feminine: 'f' },
+    formsButton: 'Forms',
+    db: 'karticky-spanish',
+    syncLock: 'karticky-sync-spanish',
+  },
 } as const satisfies Record<string, DeckProfile>
 
 /** The study day rolls over at this local hour, as in Anki. */

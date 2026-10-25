@@ -30,6 +30,7 @@ import { studyDay } from './studyDay'
 import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types'
 
 const czech = DECKS.czech
+const spanish = DECKS.spanish
 
 // ---- Fixtures ----
 
@@ -686,5 +687,26 @@ describe('practice', () => {
     const after = sim.world().derived.cards.get('c1-001:cz-en')!.fsrs.stability
     expect(after).toBeGreaterThanOrEqual(before)
     expect(after).toBeLessThan(before * 1.1)
+  })
+})
+
+describe('Spanish deck', () => {
+  it('introduces es-en cards first, and their en-es cards from the next day', () => {
+    const text = readFileSync(new URL('../../sample/sample-es.json', import.meta.url), 'utf8')
+    const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text }], spanish)
+    const set = { chapters, words: new Map([...words].map(([id, w]) => [id, { ...w, hash: `hash-${id}` }])), errors }
+    const at = (day: number, minute = 0) => new Date(2026, 9, day, 8, minute)
+    const events = [makeEvent('windows-aaaaaa', 'setting', { key: includeKey('sample'), value: 1 }, at(13))]
+    const world = (now: Date): World => ({ now, deck: spanish, set, derived: replay(events) })
+
+    const day1 = eligibleNewCards(world(at(13, 1)))
+    expect(day1).toHaveLength(8)
+    expect(dirs(day1)).toEqual(['es-en'])
+    day1.forEach((card, i) => events.push(makeEvent('windows-aaaaaa', 'review', { card, r: 3 }, at(13, 2 + i))))
+    expect(eligibleNewCards(world(at(13, 30)))).toEqual([])
+
+    const day2 = eligibleNewCards(world(at(14)))
+    expect(dirs(day2)).toEqual(['en-es'])
+    expect(sorted(day2)).toEqual(sorted(day1.map((c) => c.replace('es-en', 'en-es'))))
   })
 })

@@ -5,6 +5,8 @@ import { DECKS } from './config'
 
 const sampleText = readFileSync(new URL('../../sample/sample.json', import.meta.url), 'utf8')
 const czech = DECKS.czech
+const spanish = DECKS.spanish
+const sampleEsText = readFileSync(new URL('../../sample/sample-es.json', import.meta.url), 'utf8')
 
 const word = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -179,5 +181,89 @@ describe('loadChapterSet', () => {
     const set = await loadChapterSet([{ path: 'chapters/sample.json', text: sampleText }], czech)
     expect(set.words.size).toBe(8)
     for (const w of set.words.values()) expect(w.hash).toMatch(/^[0-9a-f]{16}$/)
+  })
+})
+
+const esWord = (id: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  es: `es ${id}`,
+  en: `en ${id}`,
+  example: 'Ejemplo.',
+  exampleEn: 'Example.',
+  ...extra,
+})
+
+describe('Spanish chapter files', () => {
+  it('loads the Spanish sample chapter: 8 words, 16 cards, no errors', async () => {
+    const set = await loadChapterSet([{ path: 'chapters/sample.json', text: sampleEsText }], spanish)
+    expect(set.errors).toEqual([])
+    expect(set.chapters).toMatchObject([{ id: 'sample', order: 1, title: 'Sample' }])
+    expect(set.chapters[0].wordIds).toHaveLength(8)
+    expect(set.words.get('sample-001')).toMatchObject({ term: 'el perro', en: 'dog', gender: 'm' })
+    expect(set.words.get('sample-003')).toMatchObject({ term: 'el agua', gender: 'f', note: expect.stringContaining('stressed a') })
+    expect(set.words.get('sample-005')).toMatchObject({ term: 'hablar', verb: true })
+    expect(set.words.get('sample-005')?.tables?.map((t) => t.title ?? t.cols?.join('|'))).toEqual(['|present|preterite|imperfect', 'Other forms'])
+    expect(set.words.get('sample-006')).toMatchObject({ term: 'acordarse de', verb: true, note: 'o → ue: me acuerdo.' })
+    expect(set.words.get('sample-007')).toMatchObject({ label: 'informal' })
+    for (const id of ['sample-007', 'sample-008']) {
+      expect(set.words.get(id)).not.toHaveProperty('gender')
+      expect(set.words.get(id)).not.toHaveProperty('verb')
+    }
+  })
+
+  it('reads the word from "es", not "cz"', () => {
+    const { words, errors } = parseChapterFiles([file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, [word('cz-only')])], spanish)
+    expect(words.size).toBe(0)
+    expect(errors).toEqual([{ file: 'chapters/c.json', wordId: 'cz-only', problem: 'Missing or empty "es"; skipped' }])
+  })
+
+  it('skips and reports aspect, partner, Czech genders, and a verb with a gender', () => {
+    const { words, errors } = parseChapterFiles(
+      [
+        file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, [
+          esWord('noun-m', { gender: 'm' }),
+          esWord('noun-f', { gender: 'f' }),
+          esWord('verb', { verb: true }),
+          esWord('phrase', { verb: null }),
+          esWord('aspect', { verb: true, aspect: 'impf' }),
+          esWord('partner', { partner: 'x' }),
+          esWord('neuter', { gender: 'n' }),
+          esWord('anim', { gender: 'm-anim' }),
+          esWord('both', { gender: 'm', verb: true }),
+          esWord('verb-false', { verb: false }),
+          esWord('verb-text', { verb: 'yes' }),
+        ]),
+      ],
+      spanish,
+    )
+    expect([...words.keys()]).toEqual(['noun-m', 'noun-f', 'verb', 'phrase'])
+    expect(words.get('phrase')).not.toHaveProperty('verb')
+    const problem = (id: string) => errors.find((e) => e.wordId === id)?.problem
+    expect(problem('aspect')).toBe('Spanish words have no "aspect" or "partner"; skipped')
+    expect(problem('partner')).toBe('Spanish words have no "aspect" or "partner"; skipped')
+    expect(problem('neuter')).toBe('Invalid gender "n" (use m or f); skipped')
+    expect(problem('anim')).toBe('Invalid gender "m-anim" (use m or f); skipped')
+    expect(problem('both')).toBe('A word may not have both "gender" and "verb"; skipped')
+    expect(problem('verb-false')).toBe('Invalid "verb" (use true, or leave it out); skipped')
+    expect(problem('verb-text')).toBe('Invalid "verb" (use true, or leave it out); skipped')
+    expect(errors).toHaveLength(7)
+  })
+
+  it('skips and reports a Czech word marked "verb", and a Czech word with a Spanish gender', () => {
+    const { words, errors } = parseChapterFiles(
+      [file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, [word('v', { aspect: 'impf', verb: true }), word('m', { gender: 'm' })])],
+      czech,
+    )
+    expect(words.size).toBe(0)
+    expect(errors.map((e) => e.problem)).toEqual([
+      'Czech words have no "verb"; a verb has "aspect"; skipped',
+      'Invalid gender "m" (use m-anim, m-inanim, f or n); skipped',
+    ])
+  })
+
+  it('hashes "verb" only when a word has it', async () => {
+    const base = { term: 'hablar', en: 'to speak', example: 'Hablo.', exampleEn: 'I speak.' }
+    expect(await contentHash({ ...base, verb: true })).not.toBe(await contentHash(base))
+    expect(await contentHash({ ...base, verb: undefined })).toBe(await contentHash(base))
   })
 })

@@ -23,7 +23,7 @@ const MAX_TABLE_COLS = 6
 /** The fields that make up a word's content hash, in hashing order. */
 export const CONTENT_FIELDS = ['term', 'en', 'gender', 'aspect', 'partner', 'hint', 'example', 'exampleEn', 'note'] as const
 /** Fields added later. Each joins the hash only when present, so adding one leaves other words' hashes alone. */
-export const LATER_CONTENT_FIELDS = ['label', 'tables'] as const
+export const LATER_CONTENT_FIELDS = ['label', 'tables', 'verb'] as const
 
 /** A word with bad tables still loads, without them, and the problem is reported. */
 type Parsed = { ok: true; word: Word; problem?: string } | { ok: false; problem: string }
@@ -88,6 +88,10 @@ function parseWord(raw: Record<string, unknown>, deck: DeckProfile): Parsed {
   if (!deck.aspect && (raw.aspect !== undefined || word.partner)) {
     return { ok: false, problem: `${deck.name} words have no "aspect" or "partner"` }
   }
+  const verb = raw.verb !== undefined && raw.verb !== null
+  if (verb && deck.aspect) return { ok: false, problem: `${deck.name} words have no "verb"; a verb has "aspect"` }
+  if (verb && raw.verb !== true) return { ok: false, problem: 'Invalid "verb" (use true, or leave it out)' }
+  if (verb && word.gender) return { ok: false, problem: 'A word may not have both "gender" and "verb"' }
   if (raw.aspect !== undefined) {
     if (!ASPECTS.includes(raw.aspect as Aspect)) {
       return { ok: false, problem: `Invalid aspect ${JSON.stringify(raw.aspect)} (use impf, pf or biasp)` }
@@ -96,7 +100,7 @@ function parseWord(raw: Record<string, unknown>, deck: DeckProfile): Parsed {
   }
   if (word.gender && word.aspect) return { ok: false, problem: 'A word may not have both "gender" and "aspect"' }
   if (word.partner && !word.aspect) return { ok: false, problem: '"partner" requires "aspect"' }
-  const parsed = { id: raw.id as string, ...word } as unknown as Word
+  const parsed = { id: raw.id as string, ...word, ...(verb && { verb: true }) } as unknown as Word
   if (raw.tables === undefined || raw.tables === null) return { ok: true, word: parsed }
   const tables = parseTables(raw.tables)
   if ('problem' in tables) return { ok: true, word: parsed, problem: `${tables.problem}; tables left out` }

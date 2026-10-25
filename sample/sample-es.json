@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "chapter": { "id": "sample", "order": 1, "title": "Sample" },
+  "words": [
+    { "id": "sample-001", "es": "el perro", "en": "dog", "gender": "m",
+      "example": "Nuestro perro es muy grande.", "exampleEn": "Our dog is very big." },
+    { "id": "sample-002", "es": "la mesa", "en": "table", "gender": "f", "hint": "furniture",
+      "example": "El libro está en la mesa.", "exampleEn": "The book is on the table." },
+    { "id": "sample-003", "es": "el agua", "en": "water", "gender": "f",
+      "example": "¿Me pone un vaso de agua?", "exampleEn": "Could I have a glass of water?",
+      "note": "Feminine, but el before a stressed a: el agua fría." },
+    { "id": "sample-004", "es": "la ciudad", "en": "town, city", "gender": "f",
+      "example": "Vivo en una ciudad pequeña.", "exampleEn": "I live in a small town.",
+      "note": "Plural: las ciudades." },
+    { "id": "sample-005", "es": "hablar", "en": "to speak, to talk", "verb": true,
+      "example": "¿Habláis español?", "exampleEn": "Do you (all) speak Spanish?",
+      "tables": [
+        { "cols": ["", "present", "preterite", "imperfect"], "rows": [
+          ["yo", "hablo", "hablé", "hablaba"], ["tú", "hablas", "hablaste", "hablabas"],
+          ["él, ella, usted", "habla", "habló", "hablaba"], ["nosotros/as", "hablamos", "hablamos", "hablábamos"],
+          ["vosotros/as", "habláis", "hablasteis", "hablabais"], ["ellos, ellas, ustedes", "hablan", "hablaron", "hablaban"]] },
+        { "title": "Other forms", "rows": [["perfect", "he hablado"], ["future", "hablaré"],
+          ["gerund", "hablando"], ["imperative", "habla · hablad · hable"]],
+          "note": "Imperative: tú · vosotros · usted." }] },
+    { "id": "sample-006", "es": "acordarse de", "en": "to remember", "verb": true,
+      "example": "No me acuerdo de la dirección.", "exampleEn": "I don't remember the address.",
+      "note": "o → ue: me acuerdo." },
+    { "id": "sample-007", "es": "¿qué tal?", "en": "how are things?, how was it?", "label": "informal",
+      "example": "Hola, ¿qué tal el fin de semana?", "exampleEn": "Hi, how was the weekend?" },
+    { "id": "sample-008", "es": "gracias", "en": "thank you, thanks",
+      "example": "Muchas gracias por la ayuda.", "exampleEn": "Thank you very much for the help." }
+  ]
+}

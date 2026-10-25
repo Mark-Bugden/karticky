@@ -54,7 +54,7 @@ export default defineConfig({
         id: '/karticky/',
         name: 'Kartičky',
         short_name: 'Kartičky',
-        description: 'Czech vocabulary flashcards',
+        description: 'Vocabulary flashcards',
         lang: 'en',
         start_url: '/karticky/',
         scope: '/karticky/',

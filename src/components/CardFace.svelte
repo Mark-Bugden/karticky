@@ -96,6 +96,9 @@
   .g-m-anim {
     color: var(--g-m-anim);
   }
+  .g-m {
+    color: var(--g-m);
+  }
   .g-m-inanim {
     color: var(--g-m-inanim);
   }

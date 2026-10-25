@@ -54,6 +54,15 @@ describe('card ids', () => {
     expect(DIRECTIONS.map((d) => cardId(czech, 'w', d))).toEqual(['w:cz-en', 'w:en-cz'])
     expect(DIRECTIONS.map((d) => parseCardId(cardId(czech, 'w', d)).dir)).toEqual(['forward', 'reverse'])
   })
+
+  it('names Spanish cards es-en and en-es, with their own database and sync lock', () => {
+    const spanish = DECKS.spanish
+    expect(spanish).toMatchObject({ repo: 'karticky-spanish', code: 'es', lang: 'es-ES', db: 'karticky-spanish', syncLock: 'karticky-sync-spanish' })
+    expect(DIRECTIONS.map((d) => cardId(spanish, 'w', d))).toEqual(['w:es-en', 'w:en-es'])
+    expect(parseCardId('w:en-es')).toEqual({ wordId: 'w', dir: 'reverse' })
+    expect(siblingId('w:es-en')).toBe('w:en-es')
+    expect(siblingId('w:en-es')).toBe('w:es-en')
+  })
 })
 
 describe('events', () => {
@@ -80,6 +89,18 @@ describe('events', () => {
     expect(isValidEvent({ id: 'f', t: ok.t, dev: 'd', type: 'flag', word: 'w1', hash: 'abc' }, czech)).toBe(true)
     expect(isValidEvent({ id: 's', t: ok.t, dev: 'd', type: 'setting', key: 'newPerDay', value: 12 }, czech)).toBe(true)
     expect(isValidEvent({ id: 'l', t: ok.t, dev: 'd', type: 'learnMore', day: '2026-10-13' }, czech)).toBe(true)
+  })
+
+  it("rejects events naming the other deck's cards", () => {
+    const spanish = DECKS.spanish
+    const cz = ev('c', '2026-10-13T08:00:00.000Z')
+    const es = ev('s', '2026-10-13T09:00:00.000Z', 'android-111111', { card: 'w1:es-en' })
+    expect(isValidEvent(cz, czech)).toBe(true)
+    expect(isValidEvent(es, czech)).toBe(false)
+    expect(isValidEvent(es, spanish)).toBe(true)
+    expect(isValidEvent(cz, spanish)).toBe(false)
+    expect(isValidEvent({ ...es, type: 'suspend', r: undefined, card: 'w1:en-cz' }, spanish)).toBe(false)
+    expect(parseLogFile([cz, es].map(toLogLine).join('\n'), spanish)).toEqual([es])
   })
 
   it('round-trips through a log file and skips damaged lines', () => {

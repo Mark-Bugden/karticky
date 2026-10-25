@@ -139,6 +139,10 @@
   .form.g-m-anim {
     color: var(--g-m-anim);
   }
+  thead .g-m,
+  .form.g-m {
+    color: var(--g-m);
+  }
   thead .g-f,
   .form.g-f {
     color: var(--g-f);

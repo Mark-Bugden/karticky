@@ -11,6 +11,7 @@ import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types
 
 const sampleText = readFileSync(new URL('../../sample/sample.json', import.meta.url), 'utf8')
 const czech = DECKS.czech
+const spanish = DECKS.spanish
 
 function sampleSet(extraFiles: { path: string; text: string }[] = []): ChapterSet {
   const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text: sampleText }, ...extraFiles], czech)
@@ -226,5 +227,28 @@ describe('summary', () => {
     expect(seeds).toHaveLength(8)
     expect(seeds[0]).toEqual({ id: 'sample-001', chapterId: 'sample', term: 'pes', en: 'dog' })
     expect(seedsFromSummary('not json', czech)).toEqual([])
+  })
+})
+
+describe('Spanish summary', () => {
+  it('names the word column es and the directions es-en and en-es', () => {
+    const text = readFileSync(new URL('../../sample/sample-es.json', import.meta.url), 'utf8')
+    const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text }], spanish)
+    const loaded = new Map<string, LoadedWord>([...words].map(([id, w]) => [id, { ...w, hash: `hash-${id}` }]))
+    const log = new Log()
+    log.review('sample-005:es-en', 3)
+    log.add('suspend', { card: 'sample-002:en-es' })
+    const s = buildSummary({ now: log.now, deck: spanish, set: { chapters, words: loaded, errors }, derived: replay(log.events) }, 'd', new Map())
+    expect(s.cardColumns).toEqual(['card', 'chapter', 'es', 'en', 'state', 'introduced', 'due', 'stability', 'difficulty', 'reps', 'lapses', 'reviews'])
+    expect(Object.keys(s.byDirection)).toEqual(['es-en', 'en-es'])
+    expect(s.byDirection['es-en']).toMatchObject({ cards: 8, introduced: 1 })
+    expect(s.byDirection['en-es']).toMatchObject({ cards: 7, introduced: 0 })
+    expect(s.cards).toHaveLength(16)
+    expect(s.cards.slice(0, 2).map((r) => r.slice(0, 4))).toEqual([
+      ['sample-001:es-en', 'sample', 'el perro', 'dog'],
+      ['sample-001:en-es', 'sample', 'el perro', 'dog'],
+    ])
+    expect(s.lists.suspended).toEqual(['sample-002:en-es'])
+    expect(seedsFromSummary(summaryText(s), spanish)[0]).toEqual({ id: 'sample-001', chapterId: 'sample', term: 'el perro', en: 'dog' })
   })
 })
