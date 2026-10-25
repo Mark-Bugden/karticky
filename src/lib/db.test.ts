@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   KartickyDB,
@@ -15,8 +16,11 @@ import {
   setMeta,
   unpushedEvents,
 } from './db'
-import { cardId, compareEvents, isValidEvent, makeEvent, parseCardId, parseLogFile, siblingId, toLogLine } from './events'
+import { DECKS } from './config'
+import { cardId, compareEvents, DIRECTIONS, isValidEvent, makeEvent, parseCardId, parseLogFile, siblingId, toLogLine } from './events'
 import type { AppEvent } from './types'
+
+const czech = DECKS.czech
 
 let db: KartickyDB
 let n = 0
@@ -39,10 +43,16 @@ const ev = (id: string, t: string, dev = 'windows-aaaaaa', extra: Partial<AppEve
 
 describe('card ids', () => {
   it('builds, parses and flips card ids', () => {
-    expect(cardId('ch01-006', 'en-cz')).toBe('ch01-006:en-cz')
-    expect(parseCardId('ch01-006:en-cz')).toEqual({ wordId: 'ch01-006', dir: 'en-cz' })
+    expect(cardId(czech, 'ch01-006', 'reverse')).toBe('ch01-006:en-cz')
+    expect(parseCardId('ch01-006:en-cz')).toEqual({ wordId: 'ch01-006', dir: 'reverse' })
     expect(siblingId('ch01-006:cz-en')).toBe('ch01-006:en-cz')
     expect(siblingId('ch01-006:en-cz')).toBe('ch01-006:cz-en')
+  })
+
+  it('keeps the names every existing Czech card id, database and sync lock already use', () => {
+    expect(czech).toMatchObject({ repo: 'karticky-czech', code: 'cz', db: 'karticky', syncLock: 'karticky-sync' })
+    expect(DIRECTIONS.map((d) => cardId(czech, 'w', d))).toEqual(['w:cz-en', 'w:en-cz'])
+    expect(DIRECTIONS.map((d) => parseCardId(cardId(czech, 'w', d)).dir)).toEqual(['forward', 'reverse'])
   })
 })
 
@@ -51,7 +61,7 @@ describe('events', () => {
     const e = makeEvent('android-3f9a1c', 'review', { card: 'w:cz-en', r: 1 }, new Date('2026-10-13T08:00:00Z'))
     expect(e).toMatchObject({ t: '2026-10-13T08:00:00.000Z', dev: 'android-3f9a1c', type: 'review', card: 'w:cz-en', r: 1 })
     expect(e.id).toMatch(/^[0-9a-f-]{36}$/)
-    expect(isValidEvent(e)).toBe(true)
+    expect(isValidEvent(e, czech)).toBe(true)
   })
 
   it('sorts by timestamp, then id', () => {
@@ -61,22 +71,22 @@ describe('events', () => {
 
   it('rejects malformed events', () => {
     const ok = ev('x', '2026-10-13T08:00:00.000Z')
-    expect(isValidEvent(ok)).toBe(true)
-    expect(isValidEvent({ ...ok, r: 5 })).toBe(false)
-    expect(isValidEvent({ ...ok, t: '2026-10-13' })).toBe(false)
-    expect(isValidEvent({ ...ok, card: 'w1' })).toBe(false)
-    expect(isValidEvent({ ...ok, type: 'teleport' })).toBe(false)
-    expect(isValidEvent({ id: 'f', t: ok.t, dev: 'd', type: 'flag', word: 'w1' })).toBe(false)
-    expect(isValidEvent({ id: 'f', t: ok.t, dev: 'd', type: 'flag', word: 'w1', hash: 'abc' })).toBe(true)
-    expect(isValidEvent({ id: 's', t: ok.t, dev: 'd', type: 'setting', key: 'newPerDay', value: 12 })).toBe(true)
-    expect(isValidEvent({ id: 'l', t: ok.t, dev: 'd', type: 'learnMore', day: '2026-10-13' })).toBe(true)
+    expect(isValidEvent(ok, czech)).toBe(true)
+    expect(isValidEvent({ ...ok, r: 5 }, czech)).toBe(false)
+    expect(isValidEvent({ ...ok, t: '2026-10-13' }, czech)).toBe(false)
+    expect(isValidEvent({ ...ok, card: 'w1' }, czech)).toBe(false)
+    expect(isValidEvent({ ...ok, type: 'teleport' }, czech)).toBe(false)
+    expect(isValidEvent({ id: 'f', t: ok.t, dev: 'd', type: 'flag', word: 'w1' }, czech)).toBe(false)
+    expect(isValidEvent({ id: 'f', t: ok.t, dev: 'd', type: 'flag', word: 'w1', hash: 'abc' }, czech)).toBe(true)
+    expect(isValidEvent({ id: 's', t: ok.t, dev: 'd', type: 'setting', key: 'newPerDay', value: 12 }, czech)).toBe(true)
+    expect(isValidEvent({ id: 'l', t: ok.t, dev: 'd', type: 'learnMore', day: '2026-10-13' }, czech)).toBe(true)
   })
 
   it('round-trips through a log file and skips damaged lines', () => {
     const a = ev('a', '2026-10-13T08:00:00.000Z')
     const b = ev('b', '2026-10-13T09:00:00.000Z', 'd', { type: 'undo', card: undefined, r: undefined, target: 'a' })
     const text = [toLogLine(a), '{broken', '', toLogLine(b), JSON.stringify({ id: 'z' })].join('\n') + '\n'
-    expect(parseLogFile(text)).toEqual([a, { id: 'b', t: b.t, dev: 'd', type: 'undo', target: 'a' }])
+    expect(parseLogFile(text, czech)).toEqual([a, { id: 'b', t: b.t, dev: 'd', type: 'undo', target: 'a' }])
     expect(toLogLine({ ...a, pushed: 0 } as AppEvent)).not.toContain('pushed')
   })
 })
@@ -135,14 +145,36 @@ describe('database', () => {
 
   it('remembers words and seeds only unknown ones', async () => {
     await rememberWords(db, [
-      { id: 'w1', cz: 'pes', en: 'dog', example: 'e', exampleEn: 'e', chapterId: 'c1', hash: 'h1' },
+      { id: 'w1', term: 'pes', en: 'dog', example: 'e', exampleEn: 'e', chapterId: 'c1', hash: 'h1' },
     ])
     const added = await seedLastSeen(db, [
-      { id: 'w1', cz: 'WRONG', en: 'WRONG', chapterId: 'x' },
-      { id: 'w2', cz: 'kočka', en: 'cat', chapterId: 'c1' },
+      { id: 'w1', term: 'WRONG', en: 'WRONG', chapterId: 'x' },
+      { id: 'w2', term: 'kočka', en: 'cat', chapterId: 'c1' },
     ])
     expect(added).toBe(1)
-    expect((await db.lastSeen.get('w1'))?.cz).toBe('pes')
-    expect((await db.lastSeen.get('w2'))?.cz).toBe('kočka')
+    expect((await db.lastSeen.get('w1'))?.term).toBe('pes')
+    expect((await db.lastSeen.get('w2'))?.term).toBe('kočka')
+  })
+
+  it('upgrades a version 1 database, renaming cz to term in last-seen words and keeping the rest', async () => {
+    const name = `v1-${++n}`
+    const v1 = new Dexie(name)
+    v1.version(1).stores({ events: 'id, [dev+t], pushed, [t+id]', files: 'path', lastSeen: 'id', meta: 'key' })
+    await v1.table('lastSeen').bulkPut([
+      { id: 'w1', chapterId: 'c1', cz: 'pes', en: 'dog', example: 'Náš pes.', exampleEn: 'Our dog.', hash: 'h1' },
+      { id: 'w2', chapterId: null, cz: 'kočka', en: 'cat' },
+    ])
+    await v1.table('meta').put({ key: 'deviceId', value: 'windows-aaaaaa' })
+    await v1.table('events').add({ ...ev('a', '2026-10-13T08:00:00.000Z'), pushed: 1 })
+    v1.close()
+
+    const v2 = new KartickyDB(name)
+    expect(await v2.lastSeen.toArray()).toEqual([
+      { id: 'w1', chapterId: 'c1', term: 'pes', en: 'dog', example: 'Náš pes.', exampleEn: 'Our dog.', hash: 'h1' },
+      { id: 'w2', chapterId: null, term: 'kočka', en: 'cat' },
+    ])
+    expect(await getDeviceId(v2)).toBe('windows-aaaaaa')
+    expect(await allEvents(v2)).toEqual([{ ...ev('a', '2026-10-13T08:00:00.000Z'), pushed: 1 }])
+    await v2.delete()
   })
 })

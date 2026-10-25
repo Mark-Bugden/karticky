@@ -10,16 +10,17 @@ import {
   STRUGGLING_LAPSES,
 } from './config'
 import type { LastSeenWord } from './db'
-import { cardId, DIRECTIONS, parseCardId } from './events'
+import { cardId, directionCode, DIRECTIONS, parseCardId } from './events'
 import { cardState, isFlagged, isHidden, isIncluded, isLearned, isPaused, streak, type World } from './queue'
 import { State, type CardState } from './replay'
 import { addDays, dayEnd, studyDay } from './studyDay'
-import type { Direction, FileError } from './types'
+import type { DeckProfile, FileError } from './types'
 
-export const CARD_COLUMNS = [
+/** The columns of the card rows. The word column is named by the deck's code ("cz"). */
+export const cardColumns = (deck: DeckProfile) => [
   'card',
   'chapter',
-  'cz',
+  deck.code,
   'en',
   'state',
   'introduced',
@@ -29,7 +30,7 @@ export const CARD_COLUMNS = [
   'reps',
   'lapses',
   'reviews',
-] as const
+]
 
 type CardRow = [
   string,
@@ -66,8 +67,9 @@ export interface Summary {
   streak: { current: number; longest: number }
   totals: { words: number; cards: number; introduced: number; reviews: number; lapses: number; dueToday: number }
   byChapter: ({ id: string; title: string; order: number; included: boolean } & GroupMetrics)[]
-  byDirection: Record<Direction, GroupMetrics>
-  cardColumns: typeof CARD_COLUMNS
+  /** Keyed by the direction as card ids name it ("cz-en", "en-cz"). */
+  byDirection: Record<string, GroupMetrics>
+  cardColumns: string[]
   cards: CardRow[]
   lists: { struggling: string[]; flagged: string[]; deleted: string[]; removed: string[]; suspended: string[] }
   fileErrors: FileError[]
@@ -131,7 +133,7 @@ export function buildSummary(w: World, deviceId: string, lastSeen: Map<string, L
   // Every word in a current file (study order), then every word known only from history.
   const currentWords = w.set.chapters.flatMap((ch) => ch.wordIds)
   const removed = [...w.derived.historyWords].filter((id) => !w.set.words.has(id)).sort()
-  const allCards = [...currentWords, ...removed].flatMap((wordId) => DIRECTIONS.map((d) => cardId(wordId, d)))
+  const allCards = [...currentWords, ...removed].flatMap((wordId) => DIRECTIONS.map((d) => cardId(w.deck, wordId, d)))
   const visible = allCards.filter((id) => !isHidden(w, id))
 
   const cards: CardRow[] = allCards.map((id) => {
@@ -141,7 +143,7 @@ export function buildSummary(w: World, deviceId: string, lastSeen: Map<string, L
     return [
       id,
       word?.chapterId ?? null,
-      word?.cz ?? null,
+      word?.term ?? null,
       word?.en ?? null,
       STATE_NAME[c.fsrs.state],
       c.introduced,
@@ -179,15 +181,14 @@ export function buildSummary(w: World, deviceId: string, lastSeen: Map<string, L
       dueToday,
     },
     byChapter: w.set.chapters.map((ch) => {
-      const ids = ch.wordIds.flatMap((wordId) => DIRECTIONS.map((d) => cardId(wordId, d))).filter((id) => !isHidden(w, id))
+      const ids = ch.wordIds.flatMap((wordId) => DIRECTIONS.map((d) => cardId(w.deck, wordId, d))).filter((id) => !isHidden(w, id))
       const order = ch.id === MISC_ID ? 0 : ch.order
       return { id: ch.id, title: ch.title, order, included: isIncluded(w, ch.id), ...metrics(ids, w, today) }
     }),
-    byDirection: {
-      'cz-en': metrics(visible.filter((id) => id.endsWith(':cz-en')), w, today),
-      'en-cz': metrics(visible.filter((id) => id.endsWith(':en-cz')), w, today),
-    },
-    cardColumns: CARD_COLUMNS,
+    byDirection: Object.fromEntries(
+      DIRECTIONS.map((d) => [directionCode(w.deck, d), metrics(visible.filter((id) => parseCardId(id).dir === d), w, today)]),
+    ),
+    cardColumns: cardColumns(w.deck),
     cards,
     lists: {
       struggling: allCards.filter((id) => {
@@ -222,22 +223,22 @@ export function sameSummary(a: string | undefined, b: string | undefined): boole
 }
 
 /** Last-seen copies for words a device never saw, taken from another device's summary. */
-export function seedsFromSummary(text: string): LastSeenWord[] {
+export function seedsFromSummary(text: string, deck: DeckProfile): LastSeenWord[] {
   try {
     const s = JSON.parse(text) as Partial<Summary>
     const cols = s.cardColumns as readonly string[] | undefined
     if (!Array.isArray(s.cards) || !cols) return []
     const at = (name: string) => cols.indexOf(name)
-    const [iCard, iChapter, iCz, iEn] = [at('card'), at('chapter'), at('cz'), at('en')]
+    const [iCard, iChapter, iTerm, iEn] = [at('card'), at('chapter'), at(deck.code), at('en')]
     const seeds = new Map<string, LastSeenWord>()
     for (const row of s.cards as unknown[][]) {
       const card = row[iCard]
-      const cz = row[iCz]
-      if (typeof card !== 'string' || typeof cz !== 'string') continue
+      const term = row[iTerm]
+      if (typeof card !== 'string' || typeof term !== 'string') continue
       const id = parseCardId(card).wordId
       const chapter = row[iChapter]
       const en = row[iEn]
-      seeds.set(id, { id, chapterId: typeof chapter === 'string' ? chapter : null, cz, en: typeof en === 'string' ? en : undefined })
+      seeds.set(id, { id, chapterId: typeof chapter === 'string' ? chapter : null, term, en: typeof en === 'string' ? en : undefined })
     }
     return [...seeds.values()]
   } catch {

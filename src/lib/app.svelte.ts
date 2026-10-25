@@ -2,7 +2,7 @@
 // current study session. Screens read these fields and call these methods.
 
 import { MISC_ID } from './chapters'
-import { GITHUB_OWNER, GITHUB_REPO, SYNC_INTERVAL_MS } from './config'
+import { DECKS, GITHUB_OWNER, SYNC_INTERVAL_MS } from './config'
 import { getMeta, KartickyDB, setMeta, unpushedCount, type LastSeenWord } from './db'
 import { emptyChapterSet, Engine } from './engine'
 import { parseCardId } from './events'
@@ -25,13 +25,13 @@ import {
 } from './queue'
 import { emptyDerived, includeKey, type Derived } from './replay'
 import { dayEnd, formatLocalDate, studyDay } from './studyDay'
-import type { ChapterSet, Direction, Grade, Word } from './types'
+import type { ChapterSet, DeckProfile, Direction, Grade, Word } from './types'
 import { SyncQueue } from './sync'
 
 export type Screen = 'loading' | 'setup' | 'home' | 'study' | 'settings' | 'chapters' | 'practice'
 
 /** The word content shown on a card, frozen when the card appears. */
-export type WordView = Partial<Word> & { id: string; cz?: string; en?: string }
+export type WordView = Partial<Word> & { id: string; term?: string; en?: string }
 
 export interface StudyState {
   plan: Plan
@@ -54,8 +54,8 @@ interface SyncStatus {
   retryAt: number | null
 }
 
-function describeProblem(e: unknown): { kind: ProblemKind; message: string } {
-  const repo = `${GITHUB_OWNER}/${GITHUB_REPO}`
+function describeProblem(e: unknown, deck: DeckProfile): { kind: ProblemKind; message: string } {
+  const repo = `${GITHUB_OWNER}/${deck.repo}`
   if (!(e instanceof GitHubError)) return { kind: 'http', message: 'Sync failed. It will try again later.' }
   const messages: Record<ProblemKind, string> = {
     offline: 'Offline',
@@ -70,6 +70,8 @@ function describeProblem(e: unknown): { kind: ProblemKind; message: string } {
 }
 
 class AppState {
+  /** The deck this device studies. */
+  readonly deck: DeckProfile = DECKS.czech
   screen = $state<Screen>('loading')
   /** Setup was opened to replace the token, so it can be cancelled back to this screen. */
   setupReturn = $state<Screen | null>(null)
@@ -88,7 +90,7 @@ class AppState {
   /** newPerDay while the stepper is being tapped, before it is recorded. */
   pendingNewPerDay = $state<number | null>(null)
 
-  world: World = $derived({ now: this.now, set: this.set, derived: this.derived })
+  world: World = $derived({ now: this.now, deck: this.deck, set: this.set, derived: this.derived })
   status = $derived(dayStatus(this.world))
   progress = $derived(chapterProgress(this.world))
   /** Ticked chapters other than misc, in study order. */
@@ -101,14 +103,14 @@ class AppState {
   flagged = $derived(
     [...this.derived.words.keys()]
       .filter((wordId) => isFlagged(this.world, wordId))
-      .map((wordId) => ({ wordId, cz: this.set.words.get(wordId)?.cz ?? wordId })),
+      .map((wordId) => ({ wordId, term: this.set.words.get(wordId)?.term ?? wordId })),
   )
   suspended = $derived(
     [...this.derived.cards]
       .filter(([, c]) => c.suspended)
       .map(([card]) => {
         const { wordId, dir } = parseCardId(card)
-        return { card, dir, cz: this.set.words.get(wordId)?.cz ?? this.lastSeen.get(wordId)?.cz ?? wordId }
+        return { card, dir, term: this.set.words.get(wordId)?.term ?? this.lastSeen.get(wordId)?.term ?? wordId }
       }),
   )
 
@@ -121,8 +123,8 @@ class AppState {
 
   async init(): Promise<void> {
     try {
-      this.db = new KartickyDB()
-      this.engine = new Engine(this.db)
+      this.db = new KartickyDB(this.deck.db)
+      this.engine = new Engine(this.db, this.deck)
       await this.engine.load()
       this.refresh()
       this.token = (await getMeta(this.db, 'token')) ?? null
@@ -255,17 +257,17 @@ class AppState {
     this.sync.running = true
     const before = { set: this.engine.set, derived: this.engine.derived }
     try {
-      const gh = new GitHub(this.token)
+      const gh = new GitHub(this.token, this.deck.repo)
       // One sync at a time across every window of the app on this device.
       const run = () => this.engine.sync(gh)
-      await (navigator.locks ? navigator.locks.request('karticky-sync', run) : run())
+      await (navigator.locks ? navigator.locks.request(this.deck.syncLock, run) : run())
       this.sync.problem = null
       this.sync.retryAt = null
       this.sync.online = true
       this.sync.lastSyncAt = new Date()
       await setMeta(this.db, 'lastSyncAt', this.sync.lastSyncAt.toISOString())
     } catch (e) {
-      this.sync.problem = describeProblem(e)
+      this.sync.problem = describeProblem(e, this.deck)
       if (e instanceof GitHubError && e.kind === 'offline') this.sync.online = false
       if (e instanceof GitHubError && e.kind === 'rate-limited' && e.retryAt) {
         this.sync.retryAt = e.retryAt
@@ -285,7 +287,7 @@ class AppState {
 
   /** Setup: checks the token can see the data repo, stores it, then runs the first sync. */
   async saveToken(token: string): Promise<string | null> {
-    const result = await checkAccess(token)
+    const result = await checkAccess(token, this.deck.repo)
     if (!result.ok) return result.message
     await setMeta(this.db, 'token', token)
     this.token = token

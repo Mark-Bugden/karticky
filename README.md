@@ -158,6 +158,11 @@ summary.
   vertical drags scroll and sideways drags reach the app as swipes (at least 60 px, mostly sideways).
 - **Pull-to-refresh** is switched off outside Home with `overscroll-behavior-y: none` on the page,
   set by a class on `<html>` that follows the current screen.
+- **Deck profiles**: everything that differs between decks (repo, language, genders, aspect, database)
+  is in a profile in `src/lib/config.ts`. Inside the app a card's direction is forward or reverse;
+  only card ids, log files and the summary use the deck's code (`cz-en`, `en-cz`). A card's direction
+  and its sibling are read from the shape of its id, so only building a card id and checking another
+  device's events need the profile.
 - **Replay cache**: the replayed state is saved in IndexedDB with a fingerprint (event count and last
   event id) and a format version, and replayed again whenever either no longer matches. Measured: 30,000 events
   replay in about 120 ms on the development computer.

@@ -3,6 +3,7 @@
   import FormTables from '../components/FormTables.svelte'
   import { app } from '../lib/app.svelte'
   import { LEARN_MORE_COUNT } from '../lib/config'
+  import { formsButton } from '../lib/format'
   import type { Grade } from '../lib/types'
 
   const GRADES: { r: Grade; label: string }[] = [
@@ -23,8 +24,8 @@
   let down: { x: number; y: number } | null = null
 
   const s = $derived(app.study)
-  /** Conjugation or declension, offered wherever the Czech word is on screen. */
-  const tables = $derived(s?.view === 'card' && s.word?.tables && (s.dir === 'cz-en' || s.revealed) ? s.word.tables : null)
+  /** Conjugation or declension, offered wherever the word in the deck's language is on screen. */
+  const tables = $derived(s?.view === 'card' && s.word?.tables && (s.dir === 'forward' || s.revealed) ? s.word.tables : null)
 
   function onPointerDown(e: PointerEvent) {
     lastPointer = e.pointerType
@@ -104,7 +105,7 @@
       <div class="card-top">
         {#if tables}
           <button class="btn small forms-btn" onpointerup={(e) => e.stopPropagation()} onclick={() => (formsOpen = true)}>
-            {s.word.aspect ? 'Conjugation' : 'Declension'}
+            {formsButton(app.deck, s.word)}
           </button>
         {/if}
         <button
@@ -116,7 +117,7 @@
         >
       </div>
       <div class="content">
-        <CardFace word={s.word} dir={s.dir} revealed={s.revealed} />
+        <CardFace word={s.word} deck={app.deck} dir={s.dir} revealed={s.revealed} />
       </div>
       {#if menuOpen}
         <div class="menu" role="menu">
@@ -171,11 +172,11 @@
     <div class="modal-backdrop sheet" onclick={() => (formsOpen = false)}>
       <div class="modal forms" role="dialog" aria-modal="true" aria-labelledby="forms-title">
         <div class="forms-head">
-          <h2 id="forms-title" lang="cs">{s.word.cz}</h2>
+          <h2 id="forms-title" lang={app.deck.lang}>{s.word.term}</h2>
           <button class="icon-btn" aria-label="Close" onclick={() => (formsOpen = false)}>✕</button>
         </div>
         <div class="forms-body">
-          <FormTables {tables} />
+          <FormTables {tables} deck={app.deck} />
         </div>
       </div>
     </div>

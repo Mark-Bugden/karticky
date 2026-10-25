@@ -1,17 +1,17 @@
 <script lang="ts">
   import type { WordView } from '../lib/app.svelte'
   import { englishPrompt, partnerLine } from '../lib/format'
-  import type { Direction } from '../lib/types'
+  import type { DeckProfile, Direction } from '../lib/types'
 
-  let { word, dir, revealed }: { word: WordView; dir: Direction; revealed: boolean } = $props()
+  let { word, deck, dir, revealed }: { word: WordView; deck: DeckProfile; dir: Direction; revealed: boolean } = $props()
 
   const gender = $derived(word.gender ? `g-${word.gender}` : '')
-  const partner = $derived(word.cz ? partnerLine({ cz: word.cz, aspect: word.aspect, partner: word.partner }) : null)
+  const partner = $derived(word.term ? partnerLine({ term: word.term, aspect: word.aspect, partner: word.partner }) : null)
 </script>
 
 <div class="face">
-  {#if dir === 'cz-en'}
-    <p class="prompt cz {gender}" lang="cs">{word.cz}</p>
+  {#if dir === 'forward'}
+    <p class="prompt term {gender}" lang={deck.lang}>{word.term}</p>
     {#if word.label}<p class="label">{word.label}</p>{/if}
   {:else}
     <p class="prompt en">{word.en ? englishPrompt({ en: word.en, aspect: word.aspect }) : ''}</p>
@@ -21,14 +21,14 @@
 
   {#if revealed}
     <div class="answer">
-      {#if dir === 'cz-en'}
+      {#if dir === 'forward'}
         <p class="meaning">{word.en}</p>
       {:else}
-        <p class="meaning cz {gender}" lang="cs">{word.cz}</p>
+        <p class="meaning term {gender}" lang={deck.lang}>{word.term}</p>
       {/if}
-      {#if partner}<p class="partner" lang="cs">{partner}</p>{/if}
+      {#if partner}<p class="partner" lang={deck.lang}>{partner}</p>{/if}
       {#if word.example}
-        <p class="example" lang="cs">{word.example}</p>
+        <p class="example" lang={deck.lang}>{word.example}</p>
         <p class="translation">{word.exampleEn}</p>
       {/if}
       {#if word.note}<p class="note">{word.note}</p>{/if}

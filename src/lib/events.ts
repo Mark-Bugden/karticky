@@ -1,17 +1,25 @@
-import type { AppEvent, Direction, EventType, Grade } from './types'
+import type { AppEvent, DeckProfile, Direction, EventType, Grade } from './types'
 
-export const DIRECTIONS: readonly Direction[] = ['cz-en', 'en-cz']
+// A card id is the word id and the direction as the deck's code names it: "ce1-l01-006:cz-en" is
+// forward (Czech → English), "ce1-l01-006:en-cz" reverse.
 
-export const cardId = (wordId: string, dir: Direction) => `${wordId}:${dir}`
+export const DIRECTIONS: readonly Direction[] = ['forward', 'reverse']
+
+/** "cz-en" forward, "en-cz" reverse: the direction in card ids and the summary. */
+export const directionCode = (deck: DeckProfile, dir: Direction) => (dir === 'forward' ? `${deck.code}-en` : `en-${deck.code}`)
+
+export const cardId = (deck: DeckProfile, wordId: string, dir: Direction) => `${wordId}:${directionCode(deck, dir)}`
 
 export function parseCardId(id: string): { wordId: string; dir: Direction } {
   const i = id.lastIndexOf(':')
-  return { wordId: id.slice(0, i), dir: id.slice(i + 1) as Direction }
+  return { wordId: id.slice(0, i), dir: id.startsWith('en-', i + 1) ? 'reverse' : 'forward' }
 }
 
+/** The word's card in the other direction: "cz-en" and "en-cz" swap. */
 export function siblingId(id: string): string {
-  const { wordId, dir } = parseCardId(id)
-  return cardId(wordId, dir === 'cz-en' ? 'en-cz' : 'cz-en')
+  const i = id.lastIndexOf(':')
+  const [from, to] = id.slice(i + 1).split('-')
+  return `${id.slice(0, i)}:${to}-${from}`
 }
 
 type EventFields = Omit<AppEvent, 'id' | 't' | 'dev' | 'type'>
@@ -29,21 +37,22 @@ export function compareEvents(a: Pick<AppEvent, 't' | 'id'>, b: Pick<AppEvent, '
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const str = (v: unknown): v is string => typeof v === 'string' && v !== ''
-const isCard = (v: unknown) => str(v) && /:(cz-en|en-cz)$/.test(v)
+/** A card of this deck; an event naming another deck's card is invalid. */
+const isCard = (deck: DeckProfile, v: unknown) => str(v) && DIRECTIONS.some((d) => v.endsWith(`:${directionCode(deck, d)}`))
 
 /** Checks the shape of an event read from another device's log file. */
-export function isValidEvent(x: unknown): x is AppEvent {
+export function isValidEvent(x: unknown, deck: DeckProfile): x is AppEvent {
   if (typeof x !== 'object' || x === null) return false
   const e = x as Record<string, unknown>
   if (!str(e.id) || !str(e.dev) || typeof e.t !== 'string' || !TIMESTAMP.test(e.t)) return false
   switch (e.type) {
     case 'review':
-      return isCard(e.card) && [1, 2, 3, 4].includes(e.r as Grade)
+      return isCard(deck, e.card) && [1, 2, 3, 4].includes(e.r as Grade)
     case 'undo':
       return str(e.target)
     case 'suspend':
     case 'unsuspend':
-      return isCard(e.card)
+      return isCard(deck, e.card)
     case 'delete':
     case 'unflag':
       return str(e.word)
@@ -66,13 +75,13 @@ export function toLogLine(e: AppEvent): string {
 }
 
 /** Parses a JSONL log file, skipping blank or invalid lines. */
-export function parseLogFile(text: string): AppEvent[] {
+export function parseLogFile(text: string, deck: DeckProfile): AppEvent[] {
   const events: AppEvent[] = []
   for (const line of text.split('\n')) {
     if (line.trim() === '') continue
     try {
       const e = JSON.parse(line)
-      if (isValidEvent(e)) events.push(e)
+      if (isValidEvent(e, deck)) events.push(e)
     } catch {
       // A damaged line loses only itself.
     }

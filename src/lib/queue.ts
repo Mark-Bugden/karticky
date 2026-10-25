@@ -13,10 +13,11 @@ import { MISC_ID } from './chapters'
 import { cardId, DIRECTIONS, parseCardId, siblingId } from './events'
 import { newCardState, State, type CardState, type Derived } from './replay'
 import { addDays, dayEnd, studyDay } from './studyDay'
-import type { Chapter, ChapterSet, Grade } from './types'
+import type { Chapter, ChapterSet, DeckProfile, Grade } from './types'
 
 export interface World {
   now: Date
+  deck: DeckProfile
   set: ChapterSet
   derived: Derived
 }
@@ -88,8 +89,8 @@ export function dueCards(w: World): string[] {
     const bothDueUnseen =
       isDueNow(s, w.now, today) && !isOut(w, sib) && !reviewedOn(c, today) && !reviewedOn(s, today)
     if (bothDueUnseen) {
-      // Show the one due earlier; Czech→English on a tie. The other is buried once this one is seen.
-      const sibFirst = s.fsrs.due < c.fsrs.due || (s.fsrs.due.getTime() === c.fsrs.due.getTime() && sib.endsWith(':cz-en'))
+      // Show the one due earlier; the forward card on a tie. The other is buried once this one is seen.
+      const sibFirst = s.fsrs.due < c.fsrs.due || (s.fsrs.due.getTime() === c.fsrs.due.getTime() && parseCardId(sib).dir === 'forward')
       if (sibFirst) continue
     }
     out.push(id)
@@ -114,7 +115,7 @@ export function dailyShuffle(cards: string[], today: string): string[] {
 
 /**
  * Rules 4–6: never-reviewed cards that may be introduced now, in the order they would be. Within a
- * chapter the order is shuffled daily, English→Czech cards of words already started first.
+ * chapter the order is shuffled daily, reverse cards of words already started first.
  */
 export function eligibleNewCards(w: World): string[] {
   const today = studyDay(w.now)
@@ -127,10 +128,10 @@ export function eligibleNewCards(w: World): string[] {
     const fresh: string[] = []
     for (const wordId of ch.wordIds) {
       for (const dir of DIRECTIONS) {
-        const id = cardId(wordId, dir)
+        const id = cardId(w.deck, wordId, dir)
         if (isHidden(w, id) || cardState(w.derived, id).introduced || isBuried(w, id, today)) continue
-        if (dir === 'en-cz') {
-          const sib = cardId(wordId, 'cz-en')
+        if (dir === 'reverse') {
+          const sib = cardId(w.deck, wordId, 'forward')
           const introduced = cardState(w.derived, sib).introduced
           if (isHidden(w, sib)) fresh.push(id)
           else if (introduced && introduced < today) started.push(id)
@@ -335,7 +336,7 @@ export function practiceCards(w: World, chapterIds: Iterable<string>): string[] 
     if (!chosen.has(ch.id)) continue
     for (const wordId of ch.wordIds) {
       for (const dir of DIRECTIONS) {
-        const id = cardId(wordId, dir)
+        const id = cardId(w.deck, wordId, dir)
         if (!isHidden(w, id) && cardState(w.derived, id).introduced) out.push(id)
       }
     }
@@ -416,7 +417,7 @@ export function chapterProgress(w: World): ChapterProgress[] {
     let total = 0
     for (const wordId of chapter.wordIds) {
       for (const dir of DIRECTIONS) {
-        const id = cardId(wordId, dir)
+        const id = cardId(w.deck, wordId, dir)
         if (isHidden(w, id)) continue
         total++
         const c = cardState(w.derived, id)

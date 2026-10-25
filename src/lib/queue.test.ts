@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseChapterFiles, type RawFile } from './chapters'
+import { DECKS } from './config'
 import { cardId, makeEvent } from './events'
 import {
   buildPlan,
@@ -28,10 +29,12 @@ import { applyEvent, CACHE_VERSION, canApplyIncrementally, fromCache, includeKey
 import { studyDay } from './studyDay'
 import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types'
 
+const czech = DECKS.czech
+
 // ---- Fixtures ----
 
 function chapterSet(files: RawFile[]): ChapterSet {
-  const { chapters, words, errors } = parseChapterFiles(files)
+  const { chapters, words, errors } = parseChapterFiles(files, czech)
   const loaded = new Map<string, LoadedWord>()
   for (const [id, w] of words) loaded.set(id, { ...w, hash: `hash-${id}-${w.en}` })
   return { chapters, words: loaded, errors }
@@ -76,7 +79,7 @@ class Sim {
   }
 
   world(): World {
-    return { now: this.now, set: this.set, derived: replay(this.events) }
+    return { now: this.now, deck: czech, set: this.set, derived: replay(this.events) }
   }
 
   add(type: EventType, fields: Partial<AppEvent> = {}, dev = 'windows-aaaaaa'): AppEvent {
@@ -205,7 +208,7 @@ describe('replay', () => {
     const events: AppEvent[] = []
     let t = new Date(2026, 0, 1, 8).getTime()
     for (let i = 0; i < 30_000; i++) {
-      const card = cardId(`big-${String((i % 1000) + 1).padStart(3, '0')}`, i % 2000 < 1000 ? 'cz-en' : 'en-cz')
+      const card = cardId(czech, `big-${String((i % 1000) + 1).padStart(3, '0')}`, i % 2000 < 1000 ? 'forward' : 'reverse')
       events.push({ ...makeEvent('windows-aaaaaa', 'review', { card, r: ((i % 4) + 1) as Grade }), t: new Date(t).toISOString() })
       t += 17 * 60_000
     }

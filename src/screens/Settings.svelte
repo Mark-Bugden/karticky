@@ -38,7 +38,7 @@
       <ul class="list">
         {#each app.suspended as item (item.card)}
           <li>
-            <span><span lang="cs">{item.cz}</span> <span class="muted small">{directionLabel(item.dir)}</span></span>
+            <span><span lang={app.deck.lang}>{item.term}</span> <span class="muted small">{directionLabel(app.deck, item.dir)}</span></span>
             <button class="btn small" onclick={() => app.restore(item.card)}>Restore</button>
           </li>
         {/each}
@@ -55,7 +55,7 @@
       <ul class="list">
         {#each app.flagged as item (item.wordId)}
           <li>
-            <span lang="cs">{item.cz}</span>
+            <span lang={app.deck.lang}>{item.term}</span>
             <button class="btn small" onclick={() => app.unflag(item.wordId)}>Unflag</button>
           </li>
         {/each}

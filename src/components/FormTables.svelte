@@ -1,12 +1,12 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import type { FormTable } from '../lib/types'
+  import type { DeckProfile, FormTable } from '../lib/types'
 
-  let { tables }: { tables: FormTable[] } = $props()
+  let { tables, deck }: { tables: FormTable[]; deck: DeckProfile } = $props()
 
   /** Column headings that name a gender are shown in the gender colours. */
-  const GENDER_CLASS: Record<string, string> = { masculine: 'g-m-anim', feminine: 'g-f', neuter: 'g-n' }
-  const genderClass = (heading: string | undefined) => (heading ? (GENDER_CLASS[heading] ?? '') : '')
+  const genderClass = (heading: string | undefined) =>
+    heading && Object.hasOwn(deck.tableGenders, heading) ? `g-${deck.tableGenders[heading]}` : ''
   /** Between forms in a stacked row: a line may break after the dot, never before it. */
   const SEP = ' · '
 
@@ -53,7 +53,7 @@
               {#each t.rows as row, j (j)}
                 <tr>
                   <th scope="row">{row[0]}</th>
-                  <td lang="cs">
+                  <td lang={deck.lang}>
                     {#each row.slice(1) as cell, k (k)}{#if k > 0}<span class="sep">{SEP}</span>{/if}<span class="form {genderClass(t.cols[k + 1])}">{cell}</span>{/each}
                   </td>
                 </tr>
@@ -74,7 +74,7 @@
               {#each t.rows as row, j (j)}
                 <tr>
                   <th scope="row">{row[0]}</th>
-                  {#each row.slice(1) as cell, k (k)}<td lang="cs">{cell}</td>{/each}
+                  {#each row.slice(1) as cell, k (k)}<td lang={deck.lang}>{cell}</td>{/each}
                 </tr>
               {/each}
             </tbody>

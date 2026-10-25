@@ -178,8 +178,11 @@ interface CachedCard extends Omit<CardState, 'fsrs'> {
   fsrs: Omit<Card, 'due' | 'last_review'> & { due: string; last_review?: string }
 }
 
-/** Bump when Derived gains a field, so caches written by older versions are replayed instead of trusted. */
-export const CACHE_VERSION = 2
+/**
+ * Bump when Derived gains a field, so caches written by older versions are replayed instead of trusted.
+ * 3: deck profiles; every device replays once after that update.
+ */
+export const CACHE_VERSION = 3
 
 export interface DerivedCache {
   version: number

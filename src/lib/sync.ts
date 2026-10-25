@@ -17,6 +17,7 @@ import { parseLogFile, toLogLine } from './events'
 import { GitHubError, type GitHub } from './github'
 import { utcDate } from './studyDay'
 import { sameSummary, seedsFromSummary } from './summary'
+import type { DeckProfile } from './types'
 
 export const SUMMARY_PATH = 'summary/summary.json'
 const isChapterPath = (p: string) => p.startsWith('chapters/') && p.endsWith('.json')
@@ -30,7 +31,9 @@ export interface RemoteChanges {
 
 export interface SyncDeps {
   db: KartickyDB
+  /** For the deck's repo. */
   gh: GitHub
+  deck: DeckProfile
   deviceId: string
   /** Called after remote changes are stored, so the app can reload chapters and replay events. */
   onRemoteChange: (changes: RemoteChanges) => Promise<void>
@@ -128,13 +131,13 @@ async function pull(deps: SyncDeps, treeSha: string): Promise<RemoteChanges> {
     if (cached.get(path)?.sha === sha) continue
     const text = await gh.getBlob(sha)
     if (isLogPath(path)) {
-      if ((await mergeRemoteEvents(db, parseLogFile(text))) > 0) changes.events = true
+      if ((await mergeRemoteEvents(db, parseLogFile(text, deps.deck))) > 0) changes.events = true
       await db.files.put({ path, sha })
     } else {
       await db.files.put({ path, sha, text })
       if (path === SUMMARY_PATH) {
         changes.summary = true
-        await seedLastSeen(db, seedsFromSummary(text))
+        await seedLastSeen(db, seedsFromSummary(text, deps.deck))
       } else {
         changes.chapters = true
       }

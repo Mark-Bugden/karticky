@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DECKS } from './config'
 import { KartickyDB, unpushedEvents } from './db'
 import { Engine } from './engine'
 import { checkAccess, GitHub, GitHubError } from './github'
@@ -9,6 +10,8 @@ import { State } from './replay'
 import type { Summary } from './summary'
 import { SUMMARY_PATH, SyncQueue } from './sync'
 import { FakeGitHub } from './testing/fakeGitHub'
+
+const czech = DECKS.czech
 
 const sampleText = readFileSync(new URL('../../sample/sample.json', import.meta.url), 'utf8')
 const editSample = (fn: (data: { words: Record<string, unknown>[] }) => void) => {
@@ -38,12 +41,12 @@ afterEach(async () => {
 async function device(): Promise<Engine> {
   const db = new KartickyDB(`sync-test-${++n}`)
   dbs.push(db)
-  const engine = new Engine(db, clock)
+  const engine = new Engine(db, czech, clock)
   await engine.load()
   return engine
 }
 
-const gh = (token = 'good-token') => new GitHub(token, server.fetch)
+const gh = (token = 'good-token') => new GitHub(token, czech.repo, server.fetch)
 const sync = (e: Engine) => e.sync(gh(), noSleep)
 const tick = (minutes = 1) => {
   now = new Date(now.getTime() + minutes * 60_000)
@@ -142,12 +145,12 @@ describe('sync', () => {
     server.fetch = async (url, init) => {
       if (!bDone && init.method === 'POST' && url.endsWith('/git/commits')) {
         server.fetch = realFetch
-        bDone = b.sync(new GitHub('t', realFetch), noSleep)
+        bDone = b.sync(new GitHub('t', czech.repo, realFetch), noSleep)
         await bDone
       }
       return realFetch(url, init)
     }
-    const result = await a.sync(new GitHub('t', (u, i) => server.fetch(u, i)), noSleep)
+    const result = await a.sync(new GitHub('t', czech.repo, (u, i) => server.fetch(u, i)), noSleep)
     expect(bDone).not.toBeNull()
     expect(result.pushed).toBe(1)
     expect(noSleep).toHaveBeenCalledTimes(1)
@@ -248,7 +251,7 @@ describe('sync', () => {
 
     const fresh = await device() // e.g. after its browser data was cleared
     expect((await sync(fresh)).pushed).toBeNull()
-    expect(fresh.lastSeen.get('sample-001')?.cz).toBe('pes')
+    expect(fresh.lastSeen.get('sample-001')?.term).toBe('pes')
     expect((await sync(a)).pushed).toBeNull()
     expect(server.history()).toHaveLength(commits)
   })
@@ -264,11 +267,11 @@ describe('sync', () => {
 
 describe('GitHub errors', () => {
   it('explains Setup failures', async () => {
-    expect(await checkAccess('good-token', server.fetch)).toEqual({ ok: true })
-    expect(await checkAccess('bad-token', server.fetch)).toMatchObject({ ok: false, message: expect.stringContaining("didn't accept") })
+    expect(await checkAccess('good-token', czech.repo, server.fetch)).toEqual({ ok: true })
+    expect(await checkAccess('bad-token', czech.repo, server.fetch)).toMatchObject({ ok: false, message: expect.stringContaining("didn't accept") })
     server.repoVisible = false
-    expect(await checkAccess('good-token', server.fetch)).toMatchObject({ ok: false, message: expect.stringContaining("can't see") })
-    expect(await checkAccess('good-token', () => Promise.reject(new TypeError('offline')))).toMatchObject({
+    expect(await checkAccess('good-token', czech.repo, server.fetch)).toMatchObject({ ok: false, message: expect.stringContaining("can't see") })
+    expect(await checkAccess('good-token', czech.repo, () => Promise.reject(new TypeError('offline')))).toMatchObject({
       ok: false,
       message: expect.stringContaining('offline'),
     })
@@ -277,7 +280,7 @@ describe('GitHub errors', () => {
   it('recognises rate limits only from retry-after or an exhausted limit', async () => {
     const reply = (status: number, headers: Record<string, string>) => () =>
       new Response(JSON.stringify({ message: 'x' }), { status, headers })
-    const g = new GitHub('t', server.fetch, () => 1_000_000)
+    const g = new GitHub('t', czech.repo, server.fetch, () => 1_000_000)
 
     server.respondOnce('GET', /ref\/heads/, reply(403, { 'x-ratelimit-remaining': '4999', 'x-ratelimit-reset': '999' }))
     await expect(g.getHead()).rejects.toMatchObject({ kind: 'token' })
@@ -292,13 +295,13 @@ describe('GitHub errors', () => {
   it('reports an empty data repo', async () => {
     const empty = new FakeGitHub()
     const a = await device()
-    await expect(a.sync(new GitHub('t', empty.fetch), noSleep)).rejects.toMatchObject({ kind: 'empty-repo' })
+    await expect(a.sync(new GitHub('t', czech.repo, empty.fetch), noSleep)).rejects.toMatchObject({ kind: 'empty-repo' })
     expect(new GitHubError('empty-repo', 'x')).toBeInstanceOf(Error)
   })
 
   it('sends the token only in the Authorization header, with no-store on every GET', async () => {
     const seen: RequestInit[] = []
-    const g = new GitHub('secret-token', (url, init) => {
+    const g = new GitHub('secret-token', czech.repo, (url, init) => {
       seen.push(init)
       expect(url.startsWith('https://api.github.com/')).toBe(true)
       expect(url).not.toContain('secret-token')

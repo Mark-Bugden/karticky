@@ -31,7 +31,7 @@ import {
 import { studyDay } from './studyDay'
 import { buildSummary, summaryText } from './summary'
 import { syncOnce, type SyncResult } from './sync'
-import type { AppEvent, ChapterSet, EventType } from './types'
+import type { AppEvent, ChapterSet, DeckProfile, EventType } from './types'
 
 export const emptyChapterSet = (): ChapterSet => ({ chapters: [], words: new Map(), errors: [] })
 
@@ -46,6 +46,7 @@ export class Engine {
 
   constructor(
     public db: KartickyDB,
+    public deck: DeckProfile,
     public clock: () => Date = () => new Date(),
   ) {}
 
@@ -62,7 +63,7 @@ export class Engine {
   /** Re-reads the chapter files from the sync cache and records the last-seen copy of every word. */
   async reloadChapters(): Promise<void> {
     const files = await this.db.files.where('path').startsWith('chapters/').toArray()
-    this.set = await loadChapterSet(files.map((f) => ({ path: f.path, text: f.text ?? '' })))
+    this.set = await loadChapterSet(files.map((f) => ({ path: f.path, text: f.text ?? '' })), this.deck)
     await rememberWords(this.db, this.set.words.values())
     await this.loadLastSeen()
   }
@@ -96,7 +97,7 @@ export class Engine {
   }
 
   world(now: Date = this.clock()): World {
-    return { now, set: this.set, derived: this.derived }
+    return { now, deck: this.deck, set: this.set, derived: this.derived }
   }
 
   /** Writes an event to IndexedDB, then updates the replayed state. */
@@ -131,6 +132,7 @@ export class Engine {
     const result = await syncOnce({
       db: this.db,
       gh,
+      deck: this.deck,
       deviceId: this.deviceId,
       sleep,
       buildSummary: () => this.summaryText(),

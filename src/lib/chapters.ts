@@ -2,7 +2,7 @@
 // skipped and reported; everything else loads.
 
 import { CHAPTER_FILE_MAX_BYTES } from './config'
-import type { Aspect, Chapter, ChapterSet, FileError, FormTable, Gender, LoadedWord, Word } from './types'
+import type { Aspect, Chapter, ChapterSet, DeckProfile, FileError, FormTable, Gender, LoadedWord, Word } from './types'
 
 export interface RawFile {
   path: string
@@ -12,16 +12,16 @@ export interface RawFile {
 export const MISC_ID = 'misc'
 const CHAPTER_ID = /^[a-z0-9-]+$/
 const WORD_ID = /^[a-z0-9][a-z0-9-]*$/
-const GENDERS: readonly Gender[] = ['m-anim', 'm-inanim', 'f', 'n']
 const ASPECTS: readonly Aspect[] = ['impf', 'pf', 'biasp']
-const REQUIRED_TEXT = ['cz', 'en', 'example', 'exampleEn'] as const
+/** Required text in the file, with the word field each fills. The word itself is in the field named by the deck's code. */
+const requiredText = (deck: DeckProfile) => [[deck.code, 'term'], ['en', 'en'], ['example', 'example'], ['exampleEn', 'exampleEn']] as const
 const OPTIONAL_TEXT = ['partner', 'hint', 'label', 'note'] as const
 const MAX_TABLES = 6
 const MAX_TABLE_ROWS = 24
 const MAX_TABLE_COLS = 6
 
 /** The fields that make up a word's content hash, in hashing order. */
-export const CONTENT_FIELDS = ['cz', 'en', 'gender', 'aspect', 'partner', 'hint', 'example', 'exampleEn', 'note'] as const
+export const CONTENT_FIELDS = ['term', 'en', 'gender', 'aspect', 'partner', 'hint', 'example', 'exampleEn', 'note'] as const
 /** Fields added later. Each joins the hash only when present, so adding one leaves other words' hashes alone. */
 export const LATER_CONTENT_FIELDS = ['label', 'tables'] as const
 
@@ -63,12 +63,15 @@ function parseTables(raw: unknown): { tables: FormTable[] } | { problem: string 
   return { tables }
 }
 
-function parseWord(raw: Record<string, unknown>): Parsed {
+/** "m-anim, m-inanim, f or n" */
+const listOr = (items: readonly string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`)
+
+function parseWord(raw: Record<string, unknown>, deck: DeckProfile): Parsed {
   const word: Record<string, string> = {}
-  for (const field of REQUIRED_TEXT) {
+  for (const [field, key] of requiredText(deck)) {
     const v = raw[field]
     if (typeof v !== 'string' || v.trim() === '') return { ok: false, problem: `Missing or empty "${field}"` }
-    word[field] = v.trim()
+    word[key] = v.trim()
   }
   for (const field of OPTIONAL_TEXT) {
     const v = raw[field]
@@ -77,10 +80,13 @@ function parseWord(raw: Record<string, unknown>): Parsed {
     if (v.trim() !== '') word[field] = v.trim()
   }
   if (raw.gender !== undefined) {
-    if (!GENDERS.includes(raw.gender as Gender)) {
-      return { ok: false, problem: `Invalid gender ${JSON.stringify(raw.gender)} (use m-anim, m-inanim, f or n)` }
+    if (!deck.genders.includes(raw.gender as Gender)) {
+      return { ok: false, problem: `Invalid gender ${JSON.stringify(raw.gender)} (use ${listOr(deck.genders)})` }
     }
     word.gender = raw.gender as string
+  }
+  if (!deck.aspect && (raw.aspect !== undefined || word.partner)) {
+    return { ok: false, problem: `${deck.name} words have no "aspect" or "partner"` }
   }
   if (raw.aspect !== undefined) {
     if (!ASPECTS.includes(raw.aspect as Aspect)) {
@@ -108,8 +114,8 @@ export function compareChapters(a: Pick<Chapter, 'id' | 'order'>, b: Pick<Chapte
   return a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 
-/** Parses chapter files without hashing. Words carry their chapter id. */
-export function parseChapterFiles(files: RawFile[]): {
+/** Parses one deck's chapter files without hashing. Words carry their chapter id. */
+export function parseChapterFiles(files: RawFile[], deck: DeckProfile): {
   chapters: Chapter[]
   words: Map<string, Word & { chapterId: string }>
   errors: FileError[]
@@ -187,7 +193,7 @@ export function parseChapterFiles(files: RawFile[]): {
         errors.push({ file: chapter.file, wordId: id, problem: `Duplicate id (already in chapter "${existing.chapterId}"); skipped` })
         return
       }
-      const parsed = parseWord(raw)
+      const parsed = parseWord(raw, deck)
       if (!parsed.ok) {
         errors.push({ file: chapter.file, wordId: id, problem: `${parsed.problem}; skipped` })
         return
@@ -213,9 +219,9 @@ export async function contentHash(word: Partial<Word>): Promise<string> {
   return Array.from(new Uint8Array(digest).slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** Parses chapter files and hashes every word. */
-export async function loadChapterSet(files: RawFile[]): Promise<ChapterSet> {
-  const { chapters, words, errors } = parseChapterFiles(files)
+/** Parses one deck's chapter files and hashes every word. */
+export async function loadChapterSet(files: RawFile[], deck: DeckProfile): Promise<ChapterSet> {
+  const { chapters, words, errors } = parseChapterFiles(files, deck)
   const loaded = new Map<string, LoadedWord>()
   for (const [id, word] of words) loaded.set(id, { ...word, hash: await contentHash(word) })
   return { chapters, words: loaded, errors }

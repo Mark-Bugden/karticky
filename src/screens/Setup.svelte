@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app } from '../lib/app.svelte'
-  import { GITHUB_OWNER, GITHUB_REPO } from '../lib/config'
+  import { GITHUB_OWNER } from '../lib/config'
 
   let token = $state('')
   let error = $state<string | null>(null)
@@ -18,7 +18,7 @@
 
 <main class="page">
   <h1>Kartičky</h1>
-  <p>Your cards and progress are kept in your private GitHub repository <strong>{GITHUB_OWNER}/{GITHUB_REPO}</strong>.</p>
+  <p>Your cards and progress are kept in your private GitHub repository <strong>{GITHUB_OWNER}/{app.deck.repo}</strong>.</p>
   <p>Paste this device's fine-grained token for it below. The token stays on this device.</p>
 
   <form onsubmit={save}>

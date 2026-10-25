@@ -1,7 +1,7 @@
 // A small client for the GitHub REST Git Data API, called straight from the browser.
 // The token is sent only to api.github.com and never logged or put in a URL.
 
-import { GITHUB_API, GITHUB_API_VERSION, GITHUB_BRANCH, GITHUB_OWNER, GITHUB_REPO } from './config'
+import { GITHUB_API, GITHUB_API_VERSION, GITHUB_BRANCH, GITHUB_OWNER } from './config'
 
 export type ProblemKind =
   | 'offline'
@@ -33,8 +33,6 @@ export interface TreeEntry {
 
 export type FetchFn = (url: string, init: RequestInit) => Promise<Response>
 
-const REPO_PATH = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}`
-
 export function decodeBase64Utf8(b64: string): string {
   const bin = atob(b64.replace(/\s/g, ''))
   return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))
@@ -59,11 +57,17 @@ async function toError(res: Response, now: number): Promise<GitHubError> {
 }
 
 export class GitHub {
+  private repoPath: string
+
+  /** A client for one data repo under GITHUB_OWNER. */
   constructor(
     private token: string,
+    repo: string,
     private fetchFn: FetchFn = (url, init) => fetch(url, init),
     private clock: () => number = Date.now,
-  ) {}
+  ) {
+    this.repoPath = `/repos/${GITHUB_OWNER}/${repo}`
+  }
 
   private async request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {
@@ -89,37 +93,37 @@ export class GitHub {
   }
 
   getRepo(): Promise<{ full_name: string }> {
-    return this.request('GET', REPO_PATH)
+    return this.request('GET', this.repoPath)
   }
 
   async getHead(): Promise<string> {
-    const ref = await this.request<{ object: { sha: string } }>('GET', `${REPO_PATH}/git/ref/heads/${GITHUB_BRANCH}`)
+    const ref = await this.request<{ object: { sha: string } }>('GET', `${this.repoPath}/git/ref/heads/${GITHUB_BRANCH}`)
     return ref.object.sha
   }
 
   async getCommitTree(sha: string): Promise<string> {
-    const commit = await this.request<{ tree: { sha: string } }>('GET', `${REPO_PATH}/git/commits/${sha}`)
+    const commit = await this.request<{ tree: { sha: string } }>('GET', `${this.repoPath}/git/commits/${sha}`)
     return commit.tree.sha
   }
 
   async getTree(sha: string): Promise<TreeEntry[]> {
-    const tree = await this.request<{ tree: TreeEntry[]; truncated: boolean }>('GET', `${REPO_PATH}/git/trees/${sha}?recursive=1`)
+    const tree = await this.request<{ tree: TreeEntry[]; truncated: boolean }>('GET', `${this.repoPath}/git/trees/${sha}?recursive=1`)
     if (tree.truncated) throw new GitHubError('http', 'The data repo has too many files to list')
     return tree.tree
   }
 
   async getBlob(sha: string): Promise<string> {
-    const blob = await this.request<{ content: string; encoding: string }>('GET', `${REPO_PATH}/git/blobs/${sha}`)
+    const blob = await this.request<{ content: string; encoding: string }>('GET', `${this.repoPath}/git/blobs/${sha}`)
     return blob.encoding === 'base64' ? decodeBase64Utf8(blob.content) : blob.content
   }
 
   async createBlob(content: string): Promise<string> {
-    const blob = await this.request<{ sha: string }>('POST', `${REPO_PATH}/git/blobs`, { content, encoding: 'utf-8' })
+    const blob = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/blobs`, { content, encoding: 'utf-8' })
     return blob.sha
   }
 
   async createTree(baseTree: string, files: { path: string; sha: string }[]): Promise<string> {
-    const tree = await this.request<{ sha: string }>('POST', `${REPO_PATH}/git/trees`, {
+    const tree = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/trees`, {
       base_tree: baseTree,
       tree: files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', sha: f.sha })),
     })
@@ -127,28 +131,28 @@ export class GitHub {
   }
 
   async createCommit(message: string, tree: string, parent: string): Promise<string> {
-    const commit = await this.request<{ sha: string }>('POST', `${REPO_PATH}/git/commits`, { message, tree, parents: [parent] })
+    const commit = await this.request<{ sha: string }>('POST', `${this.repoPath}/git/commits`, { message, tree, parents: [parent] })
     return commit.sha
   }
 
   async updateHead(sha: string): Promise<void> {
-    await this.request('PATCH', `${REPO_PATH}/git/refs/heads/${GITHUB_BRANCH}`, { sha, force: false })
+    await this.request('PATCH', `${this.repoPath}/git/refs/heads/${GITHUB_BRANCH}`, { sha, force: false })
   }
 }
 
 export type AccessResult = { ok: true } | { ok: false; message: string }
 
 /** Setup's check: can this token read the data repo? */
-export async function checkAccess(token: string, fetchFn?: FetchFn): Promise<AccessResult> {
+export async function checkAccess(token: string, repo: string, fetchFn?: FetchFn): Promise<AccessResult> {
   try {
-    await new GitHub(token, fetchFn).getRepo()
+    await new GitHub(token, repo, fetchFn).getRepo()
     return { ok: true }
   } catch (e) {
     const kind = e instanceof GitHubError ? e.kind : 'http'
     const message: Record<ProblemKind, string> = {
       offline: "You're offline. Connect to the internet and try again.",
       token: "GitHub didn't accept this token. Check you copied all of it, and that it hasn't expired.",
-      'not-found': `This token can't see ${GITHUB_OWNER}/${GITHUB_REPO}. Give it access to that repository.`,
+      'not-found': `This token can't see ${GITHUB_OWNER}/${repo}. Give it access to that repository.`,
       'rate-limited': 'GitHub is limiting requests right now. Try again in a few minutes.',
       'empty-repo': 'The data repository is empty.',
       conflict: 'GitHub returned an unexpected answer. Try again.',

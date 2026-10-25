@@ -1,5 +1,5 @@
 import { MISC_ID } from './chapters'
-import type { Aspect, Chapter, Direction, Word } from './types'
+import type { Aspect, Chapter, DeckProfile, Direction, Word } from './types'
 
 const ASPECT_LABEL: Record<Aspect, string> = { impf: 'impf.', pf: 'pf.', biasp: 'biasp.' }
 const PARTNER_ASPECT: Partial<Record<Aspect, Aspect>> = { impf: 'pf', pf: 'impf' }
@@ -10,15 +10,20 @@ export function englishPrompt(w: Pick<Word, 'en' | 'aspect'>): string {
 }
 
 /** "říkat (impf.) · říct (pf.)"; a biaspectual verb shows "(biasp.)" and its partner only if one is given. */
-export function partnerLine(w: Pick<Word, 'cz' | 'aspect' | 'partner'>): string | null {
+export function partnerLine(w: Pick<Word, 'term' | 'aspect' | 'partner'>): string | null {
   if (!w.aspect) return null
-  const own = `${w.cz} (${ASPECT_LABEL[w.aspect]})`
+  const own = `${w.term} (${ASPECT_LABEL[w.aspect]})`
   if (!w.partner) return own
   const other = PARTNER_ASPECT[w.aspect]
   return `${own} · ${w.partner}${other ? ` (${ASPECT_LABEL[other]})` : ''}`
 }
 
-export const directionLabel = (d: Direction) => (d === 'cz-en' ? 'Czech → English' : 'English → Czech')
+/** "Czech → English" or "English → Czech". */
+export const directionLabel = (deck: DeckProfile, d: Direction) =>
+  d === 'forward' ? `${deck.name} → English` : `English → ${deck.name}`
+
+/** The tables button: Conjugation for a verb, otherwise the deck's name for its other tables (Declension). */
+export const formsButton = (deck: DeckProfile, w: Pick<Word, 'aspect'>) => (w.aspect ? 'Conjugation' : deck.formsButton)
 
 /** "15 · A2/1 · Lesson 1"; the misc chapter shows only its title. */
 export const chapterLabel = (ch: Pick<Chapter, 'id' | 'order' | 'title'>) =>

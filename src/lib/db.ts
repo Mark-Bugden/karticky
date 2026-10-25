@@ -36,14 +36,29 @@ export class KartickyDB extends Dexie {
   lastSeen!: EntityTable<LastSeenWord, 'id'>
   meta!: EntityTable<MetaRow, 'key'>
 
-  constructor(name = 'karticky') {
+  /** Each deck has its own database, named in its profile. */
+  constructor(name: string) {
     super(name)
-    this.version(1).stores({
+    const stores = {
       events: 'id, [dev+t], pushed, [t+id]',
       files: 'path',
       lastSeen: 'id',
       meta: 'key',
-    })
+    }
+    this.version(1).stores(stores)
+    // Version 2 (deck profiles): a last-seen word keeps the word in the deck's language as `term`, no longer `cz`.
+    this.version(2)
+      .stores(stores)
+      .upgrade((tx) =>
+        tx
+          .table('lastSeen')
+          .toCollection()
+          .modify((row: Record<string, unknown>) => {
+            if (!('cz' in row)) return
+            row.term = row.cz
+            delete row.cz
+          }),
+      )
   }
 }
 

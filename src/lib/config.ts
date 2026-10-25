@@ -1,11 +1,32 @@
 // Fixed values from the design document. Change them here, not in the code that uses them.
 
+import type { DeckProfile } from './types'
+
 export const GITHUB_OWNER = 'mark-bugden'
-export const GITHUB_REPO = 'karticky-czech'
 export const GITHUB_BRANCH = 'main'
 export const GITHUB_API = 'https://api.github.com'
 /** Newest REST API version on 13 Oct 2026; none of its breaking changes touch the endpoints we use. */
 export const GITHUB_API_VERSION = '2026-03-10'
+
+/**
+ * The decks the app knows. A device studies one, chosen by its token. The Czech values are in every
+ * existing card id, summary and database, so they never change.
+ */
+export const DECKS = {
+  czech: {
+    id: 'czech',
+    repo: 'karticky-czech',
+    code: 'cz',
+    name: 'Czech',
+    lang: 'cs',
+    genders: ['m-anim', 'm-inanim', 'f', 'n'],
+    aspect: true,
+    tableGenders: { masculine: 'm-anim', feminine: 'f', neuter: 'n' },
+    formsButton: 'Declension',
+    db: 'karticky',
+    syncLock: 'karticky-sync',
+  },
+} as const satisfies Record<string, DeckProfile>
 
 /** The study day rolls over at this local hour, as in Anki. */
 export const ROLLOVER_HOUR = 4

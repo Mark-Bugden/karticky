@@ -1,17 +1,19 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseChapterFiles } from './chapters'
+import { DECKS } from './config'
 import type { LastSeenWord } from './db'
 import { makeEvent } from './events'
 import type { World } from './queue'
 import { includeKey, replay } from './replay'
-import { buildSummary, CARD_COLUMNS, sameSummary, seedsFromSummary, summaryText } from './summary'
+import { buildSummary, cardColumns, sameSummary, seedsFromSummary, summaryText } from './summary'
 import type { AppEvent, ChapterSet, EventType, Grade, LoadedWord } from './types'
 
 const sampleText = readFileSync(new URL('../../sample/sample.json', import.meta.url), 'utf8')
+const czech = DECKS.czech
 
 function sampleSet(extraFiles: { path: string; text: string }[] = []): ChapterSet {
-  const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text: sampleText }, ...extraFiles])
+  const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text: sampleText }, ...extraFiles], czech)
   const loaded = new Map<string, LoadedWord>()
   for (const [id, w] of words) loaded.set(id, { ...w, hash: `hash-${id}` })
   return { chapters, words: loaded, errors }
@@ -31,13 +33,13 @@ class Log {
     this.now = new Date(2026, 9, day, hour, 0)
   }
   world(set = sampleSet()): World {
-    return { now: this.now, set, derived: replay(this.events) }
+    return { now: this.now, deck: czech, set, derived: replay(this.events) }
   }
 }
 
 const row = (s: ReturnType<typeof buildSummary>, card: string) => {
   const r = s.cards.find((c) => c[0] === card)!
-  return Object.fromEntries(CARD_COLUMNS.map((name, i) => [name, r[i]]))
+  return Object.fromEntries(cardColumns(czech).map((name, i) => [name, r[i]]))
 }
 
 describe('summary', () => {
@@ -149,7 +151,7 @@ describe('summary', () => {
     const log = new Log()
     log.review('gone-1:cz-en', 3)
     log.review('gone-2:cz-en', 3)
-    const lastSeen = new Map<string, LastSeenWord>([['gone-1', { id: 'gone-1', chapterId: 'old', cz: 'kočka', en: 'cat' }]])
+    const lastSeen = new Map<string, LastSeenWord>([['gone-1', { id: 'gone-1', chapterId: 'old', term: 'kočka', en: 'cat' }]])
     const s = buildSummary(log.world(), 'd', lastSeen)
     expect(s.lists.removed).toEqual(['gone-1', 'gone-2'])
     expect(row(s, 'gone-1:cz-en')).toMatchObject({ chapter: 'old', cz: 'kočka', en: 'cat' })
@@ -220,9 +222,9 @@ describe('summary', () => {
 
   it('yields last-seen seeds from a summary', () => {
     const s = summaryText(buildSummary(new Log().world(), 'd', new Map()))
-    const seeds = seedsFromSummary(s)
+    const seeds = seedsFromSummary(s, czech)
     expect(seeds).toHaveLength(8)
-    expect(seeds[0]).toEqual({ id: 'sample-001', chapterId: 'sample', cz: 'pes', en: 'dog' })
-    expect(seedsFromSummary('not json')).toEqual([])
+    expect(seeds[0]).toEqual({ id: 'sample-001', chapterId: 'sample', term: 'pes', en: 'dog' })
+    expect(seedsFromSummary('not json', czech)).toEqual([])
   })
 })

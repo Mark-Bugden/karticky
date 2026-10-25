@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { contentHash, loadChapterSet, parseChapterFiles, type RawFile } from './chapters'
+import { DECKS } from './config'
 
 const sampleText = readFileSync(new URL('../../sample/sample.json', import.meta.url), 'utf8')
+const czech = DECKS.czech
 
 const word = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -20,12 +22,12 @@ const file = (path: string, chapter: Record<string, unknown>, words: unknown[]):
 
 describe('parseChapterFiles', () => {
   it('loads the sample chapter: 8 words, no errors', () => {
-    const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text: sampleText }])
+    const { chapters, words, errors } = parseChapterFiles([{ path: 'chapters/sample.json', text: sampleText }], czech)
     expect(errors).toEqual([])
     expect(chapters).toHaveLength(1)
     expect(chapters[0]).toMatchObject({ id: 'sample', order: 1, title: 'Sample', file: 'chapters/sample.json' })
     expect(chapters[0].wordIds).toHaveLength(8)
-    expect(words.get('sample-005')).toMatchObject({ cz: 'říkat', aspect: 'impf', partner: 'říct', chapterId: 'sample' })
+    expect(words.get('sample-005')).toMatchObject({ term: 'říkat', aspect: 'impf', partner: 'říct', chapterId: 'sample' })
     expect(words.get('sample-002')).toMatchObject({ gender: 'm-inanim', hint: 'furniture' })
   })
 
@@ -35,7 +37,7 @@ describe('parseChapterFiles', () => {
       file('chapters/02-a.json', { id: 'a', order: 2, title: 'A' }, []),
       file('chapters/01-z.json', { id: 'z', order: 1, title: 'Z' }, []),
       file('chapters/misc.json', { id: 'misc', order: 0, title: 'Misc' }, []),
-    ])
+    ], czech)
     expect(chapters.map((c) => c.id)).toEqual(['misc', 'z', 'a', 'b'])
     expect(chapters[0].order).toBe(0)
   })
@@ -49,7 +51,7 @@ describe('parseChapterFiles', () => {
       file('chapters/title.json', { id: 't', order: 1, title: ' ' }, []),
       { path: 'chapters/words.json', text: JSON.stringify({ format: 1, chapter: { id: 'w', order: 1, title: 'W' } }) },
       file('chapters/ok.json', { id: 'ok', order: 1, title: 'OK' }, [word('ok-1')]),
-    ])
+    ], czech)
     expect(chapters.map((c) => c.id)).toEqual(['ok'])
     expect(errors.map((e) => e.file).sort()).toEqual(
       ['chapters/bad.json', 'chapters/fmt.json', 'chapters/id.json', 'chapters/order.json', 'chapters/title.json', 'chapters/words.json'],
@@ -58,7 +60,7 @@ describe('parseChapterFiles', () => {
 
   it('accepts a byte-order mark and ignores unknown fields', () => {
     const text = '﻿' + JSON.stringify({ format: 1, extra: true, chapter: { id: 'c', order: 1, title: 'C', x: 1 }, words: [word('c-1', { future: 'x' })] })
-    const { words, errors } = parseChapterFiles([{ path: 'chapters/c.json', text }])
+    const { words, errors } = parseChapterFiles([{ path: 'chapters/c.json', text }], czech)
     expect(errors).toEqual([])
     expect(words.get('c-1')).not.toHaveProperty('future')
   })
@@ -67,7 +69,7 @@ describe('parseChapterFiles', () => {
     const { chapters, errors } = parseChapterFiles([
       file('chapters/02-dup.json', { id: 'dup', order: 1, title: 'Second' }, [word('w-2')]),
       file('chapters/01-dup.json', { id: 'dup', order: 1, title: 'First' }, [word('w-1')]),
-    ])
+    ], czech)
     expect(chapters).toHaveLength(1)
     expect(chapters[0].title).toBe('First')
     expect(errors).toEqual([{ file: 'chapters/02-dup.json', problem: expect.stringContaining('already used by chapters/01-dup.json') }])
@@ -77,7 +79,7 @@ describe('parseChapterFiles', () => {
     const { chapters, words, errors } = parseChapterFiles([
       file('chapters/a.json', { id: 'second', order: 2, title: 'Second' }, [word('same', { en: 'later' })]),
       file('chapters/b.json', { id: 'first', order: 1, title: 'First' }, [word('same', { en: 'earlier' })]),
-    ])
+    ], czech)
     expect(words.get('same')?.en).toBe('earlier')
     expect(chapters.find((c) => c.id === 'second')?.wordIds).toEqual([])
     expect(errors).toEqual([{ file: 'chapters/a.json', wordId: 'same', problem: expect.stringContaining('Duplicate id') }])
@@ -97,7 +99,7 @@ describe('parseChapterFiles', () => {
         word('bad-note', { note: 3 }),
         word('noun', { gender: 'n' }),
       ]),
-    ])
+    ], czech)
     expect([...words.keys()]).toEqual(['good', 'noun'])
     expect(errors).toHaveLength(8)
     expect(errors.find((e) => e.wordId === 'both')?.problem).toMatch(/both "gender" and "aspect"/)
@@ -113,7 +115,7 @@ describe('parseChapterFiles', () => {
     ]
     const { words, errors } = parseChapterFiles([
       file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, [word('me', { label: ' accusative, genitive ', tables })]),
-    ])
+    ], czech)
     expect(errors).toEqual([])
     expect(words.get('me')).toMatchObject({
       label: 'accusative, genitive',
@@ -132,7 +134,7 @@ describe('parseChapterFiles', () => {
       word('ragged', { tables: [{ cols: ['', 'sg', 'pl'], rows: [['nom', 'a']] }] }),
       word('number', { tables: [{ rows: [['nom', 3]] }] }),
     ]
-    const { words, errors } = parseChapterFiles([file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, bad)])
+    const { words, errors } = parseChapterFiles([file('chapters/c.json', { id: 'c', order: 1, title: 'C' }, bad)], czech)
     expect([...words.keys()]).toEqual(['not-list', 'no-rows', 'short-row', 'ragged', 'number'])
     for (const w of words.values()) expect(w).not.toHaveProperty('tables')
     expect(errors).toHaveLength(5)
@@ -141,7 +143,7 @@ describe('parseChapterFiles', () => {
 
   it('reports a file over 500 KB but still loads it', () => {
     const big = word('big', { note: 'x'.repeat(520 * 1024) })
-    const { words, errors } = parseChapterFiles([file('chapters/big.json', { id: 'big', order: 1, title: 'Big' }, [big])])
+    const { words, errors } = parseChapterFiles([file('chapters/big.json', { id: 'big', order: 1, title: 'Big' }, [big])], czech)
     expect(words.has('big')).toBe(true)
     expect(errors).toEqual([{ file: 'chapters/big.json', problem: expect.stringContaining('500 KB') }])
   })
@@ -158,7 +160,7 @@ describe('contentHash', () => {
 
   it('keeps the hash of a word without the later fields, so existing flags still match', async () => {
     // ce1-l01-057 as flagged on 14 Oct 2026, before label and tables existed.
-    const v = { cz: 'v + L', en: 'in', example: 'Petr je v kanceláři.', exampleEn: 'Petr is in the office.', note: 'Before v, f and some groups: ve, e.g. ve firmě.' }
+    const v = { term: 'v + L', en: 'in', example: 'Petr je v kanceláři.', exampleEn: 'Petr is in the office.', note: 'Before v, f and some groups: ve, e.g. ve firmě.' }
     expect(await contentHash(v)).toBe('84671a7ffc56af82')
     expect(await contentHash({ ...v, label: 'locative' })).not.toBe('84671a7ffc56af82')
     expect(await contentHash({ ...v, tables: [{ rows: [['a', 'b']] }] })).not.toBe('84671a7ffc56af82')
@@ -167,14 +169,14 @@ describe('contentHash', () => {
 
   it('ignores the id and fields outside the content list', async () => {
     expect(await contentHash(word('one'))).not.toBe(await contentHash(word('two'))) // cz/en differ
-    const base = { cz: 'a', en: 'b', example: 'c', exampleEn: 'd' }
+    const base = { term: 'a', en: 'b', example: 'c', exampleEn: 'd' }
     expect(await contentHash({ ...base, id: 'x' })).toBe(await contentHash({ ...base, id: 'y' }))
   })
 })
 
 describe('loadChapterSet', () => {
   it('hashes every loaded word', async () => {
-    const set = await loadChapterSet([{ path: 'chapters/sample.json', text: sampleText }])
+    const set = await loadChapterSet([{ path: 'chapters/sample.json', text: sampleText }], czech)
     expect(set.words.size).toBe(8)
     for (const w of set.words.values()) expect(w.hash).toMatch(/^[0-9a-f]{16}$/)
   })
