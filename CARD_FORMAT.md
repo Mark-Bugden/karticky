@@ -1,6 +1,6 @@
 # Chapter file format
 
-Cards reach the app only as UTF-8 JSON chapter files in the `chapters/` folder of `karticky-czech`, one file per chapter. This section is the rulebook for whoever writes those files; copy it verbatim into `CARD_FORMAT.md`.
+Cards reach the app only as UTF-8 JSON chapter files in the `chapters/` folder of the deck's data repo (`karticky-czech` or `karticky-spanish`), one file per chapter. This section is the rulebook for whoever writes those files; copy it verbatim into `CARD_FORMAT.md`.
 
 File names: `chapters/<order, 2 digits>-<slug>.json` (e.g. `chapters/01-greetings.json`), and `chapters/misc.json` for the misc chapter. Names are for humans; the app reads only the contents. A new chapter arrives unticked: the user ticks it in the app when they want to study it. The misc chapter is always studied.
 
@@ -85,6 +85,71 @@ Sample chapter for testing (ship as `sample/sample.json` in the app repo; the us
       "example": "Dobrý den, jak se máte?", "exampleEn": "Hello, how are you?" },
     { "id": "sample-008", "cz": "děkuji", "en": "thank you",
       "example": "Děkuji za pomoc.", "exampleEn": "Thank you for the help." }
+  ]
+}
+```
+
+## Spanish deck
+
+Spanish chapter files go in `karticky-spanish/chapters/` and follow every rule above, with these differences.
+
+| Word field | Spanish files | Differs from Czech |
+| --- | --- | --- |
+| `es` (in place of `cz`) | Spanish word or phrase as shown. Nouns in the singular with the definite article (`el libro`, `la casa`), verbs in the infinitive (`acordarse de`) | Field name; the article |
+| `gender` | Nouns only: `m` or `f`. `el agua` is `f`, with a note | Two values |
+| `verb` | Optional: `true` for a verb, so the tables button reads Conjugation | New, Spanish only |
+| `aspect`, `partner` | Not used. A Spanish word with either is skipped and reported | Czech only |
+| `label` | Register: `informal (tú)`, `formal (usted)`, `informal plural (vosotros)`, `formal plural (ustedes)`, `formal`, `informal`, `colloquial`. A pronoun form's function: `direct object`, `indirect object` | Spanish values |
+| `note` | Also carries a stem change (`o → ue: me acuerdo`), an irregular plural (`Plural: los exámenes`) or a female form (`Female: la profesora`) | Spanish uses |
+
+Rules that change:
+
+1. Rule 6 becomes: a word with `gender` is a noun and a word with `verb` is a verb; a word may not have both. `verb` is `true` or left out; any other value skips the word. A Czech word with `verb` is skipped and reported.
+2. Words are European Spanish. A word used only in Latin America gets no card unless the vocabulary session asks for it.
+3. A noun with one form for both sexes (`el/la estudiante`) is written with both articles and has no `gender`, so it shows no colour.
+4. `verb`, like `label` and `tables`, joins the content hash only when a word has it.
+
+Tables: the format and limits are as for Czech, about 12 rows in all, so a word fits a phone screen without scrolling. Headings are English. On a phone the verb grid is too wide, so the app lists each person's forms in column order (`hablo · hablé · hablaba`).
+
+- Verbs: an untitled table with `cols` `["", "present", "preterite", "imperfect"]` and six rows `yo`, `tú`, `él, ella, usted`, `nosotros/as`, `vosotros/as`, `ellos, ellas, ustedes`. Then `Other forms` with rows `perfect` (`he hablado`), `future`, `gerund` and `imperative` (`habla · hablad · hable`, noted as tú · vosotros · usted). Reflexive pronouns come before each form (`me acuerdo`).
+- Adjectives that change for gender: one table with `cols` `["", "masculine", "feminine"]` and rows `singular`, `plural`, so the app colours the gender headings. Adjectives with one form for both genders get no table; an irregular plural goes in the note (`Plural: felices`).
+- Nouns: no tables. The note carries anything irregular.
+- Pronouns: a pronoun form with its own card (`lo`, `le`, `me`) gets the object-pronoun table, with `cols` `["", "direct", "indirect", "reflexive"]` and the six person rows.
+
+Sample chapter for testing (shipped as `sample/sample-es.json`; upload it to `karticky-spanish/chapters/sample.json` and delete it once the first real chapter arrives):
+
+```json
+{
+  "format": 1,
+  "chapter": { "id": "sample", "order": 1, "title": "Sample" },
+  "words": [
+    { "id": "sample-001", "es": "el perro", "en": "dog", "gender": "m",
+      "example": "Nuestro perro es muy grande.", "exampleEn": "Our dog is very big." },
+    { "id": "sample-002", "es": "la mesa", "en": "table", "gender": "f", "hint": "furniture",
+      "example": "El libro está en la mesa.", "exampleEn": "The book is on the table." },
+    { "id": "sample-003", "es": "el agua", "en": "water", "gender": "f",
+      "example": "¿Me pone un vaso de agua?", "exampleEn": "Could I have a glass of water?",
+      "note": "Feminine, but el before a stressed a: el agua fría." },
+    { "id": "sample-004", "es": "la ciudad", "en": "town, city", "gender": "f",
+      "example": "Vivo en una ciudad pequeña.", "exampleEn": "I live in a small town.",
+      "note": "Plural: las ciudades." },
+    { "id": "sample-005", "es": "hablar", "en": "to speak, to talk", "verb": true,
+      "example": "¿Habláis español?", "exampleEn": "Do you (all) speak Spanish?",
+      "tables": [
+        { "cols": ["", "present", "preterite", "imperfect"], "rows": [
+          ["yo", "hablo", "hablé", "hablaba"], ["tú", "hablas", "hablaste", "hablabas"],
+          ["él, ella, usted", "habla", "habló", "hablaba"], ["nosotros/as", "hablamos", "hablamos", "hablábamos"],
+          ["vosotros/as", "habláis", "hablasteis", "hablabais"], ["ellos, ellas, ustedes", "hablan", "hablaron", "hablaban"]] },
+        { "title": "Other forms", "rows": [["perfect", "he hablado"], ["future", "hablaré"],
+          ["gerund", "hablando"], ["imperative", "habla · hablad · hable"]],
+          "note": "Imperative: tú · vosotros · usted." }] },
+    { "id": "sample-006", "es": "acordarse de", "en": "to remember", "verb": true,
+      "example": "No me acuerdo de la dirección.", "exampleEn": "I don't remember the address.",
+      "note": "o → ue: me acuerdo." },
+    { "id": "sample-007", "es": "¿qué tal?", "en": "how are things?, how was it?", "label": "informal",
+      "example": "Hola, ¿qué tal el fin de semana?", "exampleEn": "Hi, how was the weekend?" },
+    { "id": "sample-008", "es": "gracias", "en": "thank you, thanks",
+      "example": "Muchas gracias por la ayuda.", "exampleEn": "Thank you very much for the help." }
   ]
 }
 ```

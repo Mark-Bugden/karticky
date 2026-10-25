@@ -1,11 +1,16 @@
 # Kartičky
 
-A personal flashcard app for learning Czech vocabulary. It installs from Chrome, works with no
-connection, and keeps two devices in step through a private GitHub repository.
+A personal flashcard app for learning vocabulary, with two decks: Czech and Spanish, each studied
+against English. It installs from Chrome, works with no connection, and keeps a learner's devices in
+step through a private GitHub repository, one per deck.
 
 - App: https://mark-bugden.github.io/karticky/
-- Cards and progress: the private repository `mark-bugden/karticky-czech`
+- Cards and progress: the private repositories `mark-bugden/karticky-czech` and
+  `mark-bugden/karticky-spanish`
 - Card file rules: [CARD_FORMAT.md](CARD_FORMAT.md)
+
+Each device studies one deck, chosen by its token: a fine-grained token sees only its own deck's
+repository. To study both decks on one computer, use a separate Chrome profile for each.
 
 ## One-time setup
 
@@ -43,7 +48,29 @@ connection, and keeps two devices in step through a private GitHub repository.
 
 **Keep every GitHub Pages site under `mark-bugden.github.io` free of third-party scripts** (analytics,
 comment widgets, embeds). All those sites share one browser origin with this app, so any script on
-any of them could read the token.
+any of them could read the tokens of either deck.
+
+### The Spanish deck
+
+1. Create a private repository `karticky-spanish` under `mark-bugden` and tick "Add a README file".
+   *(Done 25 Oct 2026.)*
+2. In `karticky-spanish`, choose Add file → Create new file, name it `chapters/sample.json`, paste
+   the contents of [sample/sample-es.json](sample/sample-es.json), and commit. Skip this if the real
+   chapters are already there.
+3. For each Spanish device, create a fine-grained token as in step 4 above, with two differences:
+   name it "Kartičky Spanish laptop" or "Kartičky Spanish phone", and under **Repository access**
+   pick only `karticky-spanish`. A token that can see both repositories is refused.
+4. Create each token on the device it is for: sign in to github.com there, generate the token, paste
+   it into the app, then sign out of GitHub on that device. No token travels between devices.
+5. Laptop: open https://mark-bugden.github.io/karticky/ in Chrome, install it from the address bar,
+   open it and paste the token. The app sees which deck the token is for.
+6. Phone: open the same address in Chrome, choose ⋮ → **Install** (not "Create shortcut"), open it
+   from the home screen and paste the token. If no icon appears, allow home-screen shortcuts as in
+   step 6 above.
+7. When the first real chapter arrives, delete `chapters/sample.json` from `karticky-spanish`.
+
+A device that already studies one deck refuses a token for the other and asks for a separate Chrome
+profile, so two decks' histories never mix and nothing is deleted.
 
 ## Using the app
 
@@ -61,6 +88,9 @@ any of them could read the token.
   anywhere to close it.
 - **Gender colours** (as in Czech Express): light blue masculine animate, dark purple-blue masculine
   inanimate, red feminine, green neuter.
+- **Spanish deck**: the button reads Conjugation for a verb and Forms for an adjective or pronoun;
+  masculine nouns are blue and feminine nouns red (the Czech masculine-animate blue and feminine
+  red). A noun with one form for both sexes (el/la estudiante) is in the normal text colour.
 - **Grade**: tap Again, Hard, Good or Easy; keys 1–4 on the computer.
 - **Undo** reverts the last grade and shows that card again. **⋯** on the card: Suspend this card,
   Flag the word for fixing, or Delete the word. A flagged word is hidden on both devices until Claude
@@ -90,12 +120,14 @@ any of them could read the token.
 ## Cards and the summary for Claude
 
 - Claude writes chapter files following [CARD_FORMAT.md](CARD_FORMAT.md) and they are committed to
-  `karticky-czech/chapters/`. Problems with a file are listed in Settings → Chapter-file problems.
-- The conjugation and declension tables come from Wiktionary (English, then Czech), checked by
-  proofreading; the script that builds them is in `karticky-czech/tools/`.
-- Every sync also writes `summary/summary.json` to `karticky-czech`: each card's review history and
+  the deck's repo, in `chapters/`. Problems with a file are listed in Settings → Chapter-file
+  problems.
+- The conjugation and declension tables come from Wiktionary, checked by proofreading; the scripts
+  that build them are in each data repo's `tools/`.
+- Every sync also writes `summary/summary.json` to the deck's repo: each card's review history and
   state, totals per chapter and direction, and the flagged, deleted, removed, suspended and
-  struggling lists. Settings → Download summary saves the same file as
+  struggling lists. The word column and the direction keys are named by the deck (`cz`, `cz-en`,
+  `en-cz`; `es`, `es-en`, `en-es`). Settings → Download summary saves the same file as
   `karticky-summary-YYYY-MM-DD.json`. It holds dates only; `generatedAt` is the one timestamp.
 
 ## For developers
@@ -116,6 +148,8 @@ GitHub Pages.
 
 | Path | What it is |
 | --- | --- |
+| `src/lib/config.ts` | Fixed values, including the two decks' profiles |
+| `src/lib/decks.ts` | Which deck a device studies: the stored choice and Setup's token check |
 | `src/lib/chapters.ts` | Chapter-file parser and validator, content hash |
 | `src/lib/events.ts`, `src/lib/db.ts` | Event shape and the IndexedDB store (Dexie) |
 | `src/lib/replay.ts` | Rebuilds card state from events (ts-fsrs) and caches it |
@@ -125,7 +159,7 @@ GitHub Pages.
 | `src/lib/engine.ts` | Data core without UI: load, record, replay, sync |
 | `src/lib/app.svelte.ts` | App state for the screens: timers, sync triggers, study session |
 | `src/screens/`, `src/components/` | Setup, Home, Study (also runs practice), Settings, Chapters, Practise; the card face and the conjugation/declension tables |
-| `src/lib/testing/fakeGitHub.ts` | In-memory GitHub used by the sync tests |
+| `src/lib/testing/fakeGitHub.ts` | In-memory GitHub used by the sync tests, serving either data repo |
 
 Card state is never stored as truth: it is rebuilt by replaying the append-only event log. Each device
 writes only its own log files (`log/<deviceId>/<UTC date>.jsonl`), so the only shared file is the
@@ -206,3 +240,8 @@ Ideas noted while building V1, not built:
 - Tune FSRS parameters to the review history once there is enough of it.
 - A clearer settings icon (the system gear glyph varies by platform).
 - An animation for turning a card over (the user plans one).
+
+Left out of the Spanish deck, not built:
+
+- Two decks on one device, or switching decks in the app; a separate Chrome profile serves instead.
+- Cards against Czech, or menus in a language other than English.
